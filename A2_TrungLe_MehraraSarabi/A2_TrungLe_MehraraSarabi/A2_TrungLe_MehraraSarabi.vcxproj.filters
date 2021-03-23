@@ -1,0 +1,238 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{05c930bd-f651-4200-8bc1-7c353fd69374}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common Source Files">
+      <UniqueIdentifier>{66e47876-c168-4b70-a6bb-9adeead6eed3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Common\Camera.cpp">
+      <Filter>Common Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\d3dApp.cpp">
+      <Filter>Common Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\d3dUtil.cpp">
+      <Filter>Common Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\DDSTextureLoader.cpp">
+      <Filter>Common Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\GameTimer.cpp">
+      <Filter>Common Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\GeometryGenerator.cpp">
+      <Filter>Common Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Common\MathHelper.cpp">
+      <Filter>Common Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FrameResource.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MathHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Waves.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Week7-0-FlagBillboardsApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Week7-1-TreeBillboardsApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Week7-2-TreeBillboardsApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="A2_TrungLe_MehraraSarabi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Week5-1-TexWavesApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Common\Camera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Common\d3dApp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Common\d3dUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Common\d3dx12.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Common\DDSTextureLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Common\GameTimer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Common\GeometryGenerator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Common\MathHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Common\UploadBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameResource.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MathHelper.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Waves.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\Textures\bricks.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\bricks_nmap.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\bricks2.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\bricks2_nmap.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\bricks3.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\canada.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\checkboard.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\default_nmap.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\desertcube1024.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\flagArray.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\grass.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\grasscube1024.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\head_diff.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\head_norm.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\ice.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\jacket_diff.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\jacket_norm.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\pants_diff.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\pants_norm.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\snowcube1024.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\stone.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\sunsetcube1024.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\tile.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\tile_nmap.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\tree0.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\tree01S.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\tree1.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\tree02S.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\tree2.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\tree35S.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\treearray.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\treeArray2.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\uk.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\upBody_diff.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\upbody_norm.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\us.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\water1.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\white1x1.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\WireFence.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\WoodCrate01.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="..\..\Textures\WoodCrate02.dds">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\Textures\texassemble.exe">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+</Project>
