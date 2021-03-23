@@ -154,6 +154,7 @@
     <ClCompile Include="MathHelper.cpp" />
     <ClCompile Include="Waves.cpp" />
     <ClCompile Include="Week5-1-TexWavesApp.cpp" />
+    <ClCompile Include="Week5-TexColumnsApp.cpp" />
     <ClCompile Include="Week7-0-FlagBillboardsApp.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>

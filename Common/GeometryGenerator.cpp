@@ -7,6 +7,52 @@
 
 using namespace DirectX;
 
+GeometryGenerator::MeshData GeometryGenerator::CreateTorus(float outterradius, float innerRadius, uint32 sliceCount, uint32 stackCount)
+{
+	MeshData meshData;
+
+	// The steps for each of the separate rotations
+	float thetaStep = 2.0f * XM_PI / sliceCount; 
+	float phiStep = 2.0f * XM_PI / stackCount;
+
+	// For each slice around the circumference of the torus
+	for (uint32 i = 0; i <= sliceCount; ++i)
+	{
+		float theta = i * thetaStep;
+
+		// for each vertex around the cross section
+		for (uint32 j = 0; j <= stackCount; ++j)
+		{
+			float phi = j * phiStep;
+
+			Vertex v;
+
+			v.Position.x = outterradius * cosf(theta) + innerRadius * sinf(phi) * cosf(theta);
+			v.Position.y = innerRadius * cosf(phi);
+			v.Position.z = outterradius * sinf(theta) + innerRadius * sinf(phi) * sinf(theta);
+
+			meshData.Vertices.push_back(v);
+		}
+	}
+
+	uint32 baseIndex = 0;
+	uint32 ringVertexCount = sliceCount + 1;
+	for (uint32 i = 0; i < sliceCount; ++i)
+	{
+		for (uint32 j = 0; j < stackCount; ++j)
+		{
+			meshData.Indices32.push_back(i * (sliceCount + 1) + (j + 1));
+			meshData.Indices32.push_back(i * (sliceCount + 1) + j);
+			meshData.Indices32.push_back((i + 1) * (sliceCount + 1) + j);
+
+			meshData.Indices32.push_back(i * (sliceCount + 1) + (j + 1));
+			meshData.Indices32.push_back((i + 1) * (sliceCount + 1) + j);
+			meshData.Indices32.push_back((i + 1) * (sliceCount + 1) + (j + 1));
+		}
+	}
+
+	return meshData;
+}
 GeometryGenerator::MeshData GeometryGenerator::CreateBox(float width, float height, float depth, uint32 numSubdivisions)
 {
     MeshData meshData;
@@ -98,6 +144,86 @@ GeometryGenerator::MeshData GeometryGenerator::CreateBox(float width, float heig
         Subdivide(meshData);
 
     return meshData;
+}
+
+GeometryGenerator::MeshData GeometryGenerator::CreateWedge(float width, float height, float depth, uint32 numSubdivisions)
+{
+	MeshData meshData;
+
+	//
+	// Create the vertices.
+	//
+
+	Vertex v[18];
+
+	float w2 = 0.5f * width;
+	float h2 = 0.5f * height;
+	float d2 = 0.5f * depth;
+
+	// Fill in the front face vertex data.
+	v[0] = Vertex(-w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f); 
+	v[1] = Vertex(-w2, +h2, +d2, 0.0f, 0.0f, +1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[2] = Vertex(+w2, +h2, +d2, 0.0f, 0.0f, +1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+	v[3] = Vertex(+w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f); 
+
+	// Fill in the back face vertex data.
+	v[4] = Vertex(-w2, -h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+	v[5] = Vertex(+w2, -h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[6] = Vertex(+w2, +h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[7] = Vertex(-w2, +h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+
+	// Fill in the bottom face vertex data.
+	v[8] = Vertex(-w2, -h2, -d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+	v[9] = Vertex(+w2, -h2, -d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[10] = Vertex(+w2, -h2, +d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[11] = Vertex(-w2, -h2, +d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+
+	// Fill in the left face vertex data.
+	v[12] = Vertex(-w2, -h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f);
+	v[13] = Vertex(-w2, +h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f);
+	v[14] = Vertex(-w2, -h2, -d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f);
+
+	// Fill in the right face vertex data.
+	v[15] = Vertex(+w2, -h2, -d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+	v[16] = Vertex(+w2, +h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
+	v[17] = Vertex(+w2, -h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+
+	meshData.Vertices.assign(&v[0], &v[18]);
+
+	//
+	// Create the indices.
+	//
+
+	uint32 i[24];
+
+	// Fill in the front face index data
+	i[0] = 0; i[1] = 1; i[2] = 2;
+	i[3] = 0; i[4] = 2; i[5] = 3;
+
+	// Fill in the back face index data
+	i[6] = 4; i[7] = 5; i[8] = 6;
+	i[9] = 4; i[10] = 6; i[11] = 7;
+
+
+	// Fill in the bottom face index data
+	i[12] = 8; i[13] = 9; i[14] = 10;
+	i[15] = 8; i[16] = 10; i[17] = 11;
+
+	// Fill in the left face index data
+	i[18] = 12; i[19] = 13; i[20] = 14;
+
+	// Fill in the right face index data
+	i[21] = 15; i[22] = 16; i[23] = 17;
+
+	meshData.Indices32.assign(&i[0], &i[24]);
+
+	// Put a cap on the number of subdivisions.
+	numSubdivisions = std::min<uint32>(numSubdivisions, 6u);
+
+	for (uint32 i = 0; i < numSubdivisions; ++i)
+		Subdivide(meshData);
+
+	return meshData;
 }
 
 GeometryGenerator::MeshData GeometryGenerator::CreateSphere(float radius, uint32 sliceCount, uint32 stackCount)
@@ -473,6 +599,108 @@ GeometryGenerator::MeshData GeometryGenerator::CreateCylinder(float bottomRadius
     return meshData;
 }
 
+GeometryGenerator::MeshData GeometryGenerator::CreateCone(float bottomRadius, float height, uint32 sliceCount, uint32 stackCount)
+{
+	return CreateCylinder(bottomRadius, 0.01f, height, sliceCount,stackCount);
+}
+GeometryGenerator::MeshData GeometryGenerator::CreatePyramid(float width, float height, uint32 stackCount)
+{
+	return CreateCone(width / 2, height, 3, stackCount);
+}
+
+GeometryGenerator::MeshData GeometryGenerator::CreateTruncatedPyramid(float bottom_width, float height, float top_width, uint32 numSubdivisions)
+{
+	MeshData meshData;
+
+	//
+	// Create the vertices.
+	//
+
+	Vertex v[24];
+
+	float w2 = 0.5f * bottom_width;
+	float h2 = 0.5f * height;
+	float d2 = 0.5f * top_width;
+
+	// Fill in the front face vertex data.
+	v[0] = Vertex(-w2, -h2, -w2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[1] = Vertex(-d2, +h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[2] = Vertex(+d2, +h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+	v[3] = Vertex(+w2, -h2, -w2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+
+	// Fill in the back face vertex data.
+	v[4] = Vertex(-w2, -h2, +w2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+	v[5] = Vertex(+w2, -h2, +w2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[6] = Vertex(+d2, +h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[7] = Vertex(-d2, +h2, +d2, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+
+	// Fill in the top face vertex data.
+	v[8] = Vertex(-d2, +h2, -d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[9] = Vertex(-d2, +h2, +d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[10] = Vertex(+d2, +h2, +d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+	v[11] = Vertex(+d2, +h2, -d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+
+	// Fill in the bottom face vertex data.
+	v[12] = Vertex(-w2, -h2, -w2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+	v[13] = Vertex(+w2, -h2, -w2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[14] = Vertex(+w2, -h2, +w2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[15] = Vertex(-w2, -h2, +w2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+
+	// Fill in the left face vertex data.
+	v[16] = Vertex(-w2, -h2, +w2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f);
+	v[17] = Vertex(-d2, +h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f);
+	v[18] = Vertex(-d2, +h2, -d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f);
+	v[19] = Vertex(-w2, -h2, -w2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f);
+
+	// Fill in the right face vertex data.
+	v[20] = Vertex(+w2, -h2, -w2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+	v[21] = Vertex(+d2, +h2, -d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+	v[22] = Vertex(+d2, +h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
+	v[23] = Vertex(+w2, -h2, +w2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+
+	meshData.Vertices.assign(&v[0], &v[24]);
+
+	//
+	// Create the indices.
+	//
+
+	uint32 i[36];
+
+	// Fill in the front face index data
+	i[0] = 0; i[1] = 1; i[2] = 2;
+	i[3] = 0; i[4] = 2; i[5] = 3;
+
+	// Fill in the back face index data
+	i[6] = 4; i[7] = 5; i[8] = 6;
+	i[9] = 4; i[10] = 6; i[11] = 7;
+
+	// Fill in the top face index data
+	i[12] = 8; i[13] = 9; i[14] = 10;
+	i[15] = 8; i[16] = 10; i[17] = 11;
+
+	// Fill in the bottom face index data
+	i[18] = 12; i[19] = 13; i[20] = 14;
+	i[21] = 12; i[22] = 14; i[23] = 15;
+
+	// Fill in the left face index data
+	i[24] = 16; i[25] = 17; i[26] = 18;
+	i[27] = 16; i[28] = 18; i[29] = 19;
+
+	// Fill in the right face index data
+	i[30] = 20; i[31] = 21; i[32] = 22;
+	i[33] = 20; i[34] = 22; i[35] = 23;
+
+	meshData.Indices32.assign(&i[0], &i[36]);
+
+	// Put a cap on the number of subdivisions.
+	numSubdivisions = std::min<uint32>(numSubdivisions, 6u);
+
+	for (uint32 i = 0; i < numSubdivisions; ++i)
+		Subdivide(meshData);
+
+	return meshData;
+}
+
 void GeometryGenerator::BuildCylinderTopCap(float bottomRadius, float topRadius, float height,
 											uint32 sliceCount, uint32 stackCount, MeshData& meshData)
 {
@@ -654,4 +882,188 @@ GeometryGenerator::MeshData GeometryGenerator::CreateQuad(float x, float y, floa
 	meshData.Indices32[5] = 3;
 
     return meshData;
+}
+
+
+GeometryGenerator::MeshData GeometryGenerator::CreateDiamond(float width, float height, float depth, uint32 numSubdivisions)
+{
+	MeshData meshData;
+
+	//
+	// Create the vertices.
+	//
+
+	const int kNumVertices = 24;
+
+	Vertex v[kNumVertices];
+
+	float w2 = 0.5f * width;
+	float h2 = 0.5f * height;
+	float d2 = 0.5f * depth;
+
+	// Fill in the front face vertex data.
+	v[0] = Vertex(+0.0f, +h2, +0.0f,	0.0f, 0.0f, -1.0f,		1.0f, 0.0f, 0.0f,   0.5f, 1.0f); //0
+	v[1] = Vertex(+w2, +0.0f, -d2,		0.0f, 0.0f, -1.0f,		1.0f, 0.0f, 0.0f,   1.0f, 0.0f); //1
+	v[2] = Vertex(-w2, +0.0f, -d2,		0.0f, 0.0f, -1.0f,		1.0f, 0.0f, 0.0f,   0.0f, 0.0f); //2
+
+	v[12] = Vertex(+0.0f, -h2, +0.0f,	0.0f, 0.0f, -1.0f,		1.0f, 0.0f, 0.0f,	0.5f, 1.0f); //5
+	v[13] = Vertex(-w2, +0.0f, -d2,		0.0f, 0.0f, -1.0f,		1.0f, 0.0f, 0.0f,	0.0f, 0.0f); //2
+	v[14] = Vertex(+w2, +0.0f, -d2,		0.0f, 0.0f, -1.0f,		1.0f, 0.0f, 0.0f,	1.0f, 0.0f); //1
+
+
+	// Fill in the left face vertex data.
+	v[3] = Vertex(+0.0f, +h2, +0.0f,	-1.0f, 0.0f, 0.0f,		0.0f, 0.0f, -1.0f,	0.5f, 1.0f); //0
+	v[4] = Vertex(-w2, +0.0f, -d2,		-1.0f, 0.0f, 0.0f,		0.0f, 0.0f, -1.0f,	1.0f, 0.0f); //2
+	v[5] = Vertex(-w2, +0.0f, +d2,		-1.0f, 0.0f, 0.0f,		0.0f, 0.0f, -1.0f,	0.0f, 0.0f); //3
+
+	v[15] = Vertex(+0.0f, -h2, +0.0f,	-1.0f, 0.0f, 0.0f,		0.0f, 0.0f, -1.0f,	0.5f, 1.0f); //5
+	v[16] = Vertex(-w2, +0.0f, +d2,		-1.0f, 0.0f, 0.0f,		0.0f, 0.0f, -1.0f,	0.0f, 0.0f); //3
+	v[17] = Vertex(-w2, +0.0f, -d2,		-1.0f, 0.0f, 0.0f,		0.0f, 0.0f, -1.0f,	1.0f, 0.0f); //2
+	
+
+	// Fill in the back face vertex data.
+	v[6] = Vertex(+0.0f, +h2, +0.0f,	0.0f, 0.0f, +1.0f,		-1.0f, 0.0f, 0.0f,	0.5f, 1.0f); //0
+	v[7] = Vertex(-w2, +0.0f, +d2,		0.0f, 0.0f, +1.0f,		-1.0f, 0.0f, 0.0f,	1.0f, 0.0f); //3
+	v[8] = Vertex(+w2, +0.0f, +d2,		0.0f, 0.0f, +1.0f,		-1.0f, 0.0f, 0.0f,	0.0f, 0.0f); //4
+
+	v[18] = Vertex(+0.0f, -h2, +0.0f,	0.0f, 0.0f, -1.0f,		-1.0f, 0.0f, 0.0f,	0.5f, 1.0f); //5
+	v[19] = Vertex(+w2, +0.0f, +d2,		0.0f, 0.0f, +1.0f,		-1.0f, 0.0f, 0.0f,	0.0f, 0.0f); //4
+	v[20] = Vertex(-w2, +0.0f, +d2,		0.0f, 0.0f, +1.0f,		-1.0f, 0.0f, 0.0f,	1.0f, 0.0f); //3
+	
+
+	// Fill in the right face vertex data.
+	v[9] = Vertex(+0.0f, +h2, +0.0f,	1.0f, 0.0f, 0.0f,		0.0f, 0.0f, 1.0f,	0.5f, 1.0f); //0
+	v[10] = Vertex(+w2, +0.0f, +d2,		1.0f, 0.0f, 0.0f,		0.0f, 0.0f, 1.0f,	1.0f, 0.0f); //4
+	v[11] = Vertex(+w2, +0.0f, -d2,		1.0f, 0.0f, 0.0f,		0.0f, 0.0f, 1.0f,	0.0f, 0.0f); //1
+
+	v[21] = Vertex(+0.0f, -h2, +0.0f,	1.0f, 0.0f, 0.0f,		0.0f, 0.0f, 1.0f,	0.5f, 1.0f); //5
+	v[22] = Vertex(+w2, +0.0f, -d2,		1.0f, 0.0f, 0.0f,		0.0f, 0.0f, 1.0f,	0.0f, 0.0f); //1
+	v[23] = Vertex(+w2, +0.0f, +d2,		1.0f, 0.0f, 0.0f,		0.0f, 0.0f, 1.0f,	1.0f, 0.0f); //4
+	
+	meshData.Vertices.assign(&v[0], &v[kNumVertices]);
+
+	//
+	// Create the indices.
+	//
+
+	const int kNumIndices = 24;
+
+	uint32 i[kNumIndices];
+
+	// Fill in the face index data
+	i[0] = 0;
+	i[1] = 1;
+	i[2] = 2;
+	i[3] = 3;
+	i[4] = 4;
+	i[5] = 5;
+	i[6] = 6;
+	i[7] = 7;
+	i[8] = 8;
+	i[9] = 9;
+	i[10] = 10;
+	i[11] = 11;
+	i[12] = 12;
+	i[13] = 13;
+	i[14] = 14;
+	i[15] = 15;
+	i[16] = 16;
+	i[17] = 17;
+	i[18] = 18;
+	i[19] = 19;
+	i[20] = 20;
+	i[21] = 21;
+	i[22] = 22;
+	i[23] = 23;
+
+	meshData.Indices32.assign(&i[0], &i[kNumIndices]);
+
+	// Put a cap on the number of subdivisions.
+	numSubdivisions = std::min<uint32>(numSubdivisions, 6u);
+
+	for (uint32 i = 0; i < numSubdivisions; ++i)
+		Subdivide(meshData);
+
+	return meshData;
+}
+
+GeometryGenerator::MeshData GeometryGenerator::CreateTriangularPrism(float width, float height, uint32 numSubdivisions)
+{
+	MeshData meshData;
+
+	//
+	// Create the vertices.
+	//
+	const int kNumVertices = 18;
+
+	Vertex v[kNumVertices];
+
+	float w2 = 0.5f * width;
+	float h2 = 0.5f * height;
+	float d2 = 0.5f * (width* XMScalarSin(0.785398)); //45 degrees = 0.785398 rads
+
+	// Fill in the front face vertex data.
+	v[0] = Vertex(-w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[1] = Vertex(-w2, +h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[2] = Vertex(+w2, +h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+	v[3] = Vertex(+w2, -h2, -d2, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+
+	// Fill in the top face vertex data.
+	v[4] = Vertex(-w2, +h2, -d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[5] = Vertex(0.0f, +h2, +d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+	v[6] = Vertex(+w2, +h2, -d2, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+
+	// Fill in the bottom face vertex data.
+	v[7] = Vertex(-w2, -h2, -d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f);
+	v[8] = Vertex(+w2, -h2, -d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+	v[9] = Vertex(0.0f, -h2, +d2, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+
+	// Fill in the left face vertex data.
+	v[10] = Vertex(0.0f, -h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f);
+	v[11] = Vertex(0.0f, +h2, +d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f);
+	v[12] = Vertex(-w2, +h2, -d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f);
+	v[13] = Vertex(-w2, -h2, -d2, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f);
+
+	// Fill in the right face vertex data.
+	v[14] = Vertex(+w2, -h2, -d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+	v[15] = Vertex(+w2, +h2, -d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+	v[16] = Vertex(0.0f, +h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
+	v[17] = Vertex(0.0f, -h2, +d2, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+
+	meshData.Vertices.assign(&v[0], &v[kNumVertices]);
+
+	//
+	// Create the indices.
+	//
+	const int kNumIndices = 24;
+
+	uint32 i[kNumIndices];
+
+	// Fill in the front face index data
+	i[0] = 0; i[1] = 1; i[2] = 2;
+	i[3] = 0; i[4] = 2; i[5] = 3;
+
+	// Fill in the top face index data
+	i[6] = 4; i[7] = 5; i[8] = 6;
+
+	// Fill in the bottom face index data
+	i[9] = 7; i[10] = 8; i[11] = 9;
+
+	// Fill in the left face index data
+	i[12] = 10; i[13] = 11; i[14] = 12;
+	i[15] = 10; i[16] = 12; i[17] = 13;
+
+	// Fill in the right face index data
+	i[18] = 14; i[19] = 15; i[20] = 16;
+	i[21] = 14; i[22] = 16; i[23] = 17;
+
+	meshData.Indices32.assign(&i[0], &i[kNumIndices]);
+
+	// Put a cap on the number of subdivisions.
+	numSubdivisions = std::min<uint32>(numSubdivisions, 6u);
+
+	for (uint32 i = 0; i < numSubdivisions; ++i)
+		Subdivide(meshData);
+
+	return meshData;
 }
