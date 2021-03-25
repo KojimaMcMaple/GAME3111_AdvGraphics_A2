@@ -591,21 +591,23 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
     // 0-2 direction, 3-10 pointlight , 11-16 spot light
     mMainPassCB.Lights[3].Position = { -25.0f, 50.0f, -25.0f };
-    mMainPassCB.Lights[3].Strength = { 1.0f, 0.2f, 0.2f };
+    mMainPassCB.Lights[3].Strength = { 5.0f, 1.0f, 5.0f };
     mMainPassCB.Lights[4].Position = { 25.0f, 50.0f, -25.0f };
-    mMainPassCB.Lights[4].Strength = { 1.0f, 0.2f, 0.2f };
+    mMainPassCB.Lights[4].Strength = { 5.0f, 1.0f, 5.0f };
     mMainPassCB.Lights[5].Position = { -25.0f, 50.0f, 25.0f };
-    mMainPassCB.Lights[5].Strength = { 1.0f, 0.2f, 0.2f };
+    mMainPassCB.Lights[5].Strength = { 5.0f, 1.0f, 5.0f };
     mMainPassCB.Lights[6].Position = { 25.0f, 50.0f, 25.0f };
-    mMainPassCB.Lights[6].Strength = { 1.0f, 0.2f, 0.2f };
+    mMainPassCB.Lights[6].Strength = { 5.0f, 1.0f, 5.0f };
     mMainPassCB.Lights[7].Position = { -15.0f, 68.0f, -15.0f };
-    mMainPassCB.Lights[7].Strength = { 0.2f, 0.2f, 0.9f };
+    mMainPassCB.Lights[7].Strength = { 8.0f, 2.0f, 8.0f };
     mMainPassCB.Lights[8].Position = { 15.0f, 68.0f, -15.0f };
-    mMainPassCB.Lights[8].Strength = { 0.2f, 0.2f, 0.9f };
+    mMainPassCB.Lights[8].Strength = { 8.0f, 2.0f, 8.0f };
     mMainPassCB.Lights[9].Position = { -15.0f, 68.0f, 15.0f };
-    mMainPassCB.Lights[9].Strength = { 0.2f, 0.2f, 0.9f };
+    mMainPassCB.Lights[9].Strength = { 8.0f, 2.0f, 8.0f };
     mMainPassCB.Lights[10].Position = { 15.0f, 68.0f, 15.0f };
-    mMainPassCB.Lights[10].Strength = { 0.2f, 0.2f, 0.9f };
+    mMainPassCB.Lights[10].Strength = { 8.0f, 2.0f, 8.0f };
+    mMainPassCB.Lights[11].Position = { 0.0f, 58.0f, -2.0f };
+    mMainPassCB.Lights[11].Strength = { 5.0f, 2.0f, 10.0f };
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
     currPassCB->CopyData(0, mMainPassCB);
@@ -724,12 +726,21 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
         mCommandList.Get(), waterTex->Filename.c_str(),
         waterTex->Resource, waterTex->UploadHeap));
 
+    auto gateTex = std::make_unique<Texture>();
+    gateTex->Name = "gateTex";
+    gateTex->Filename = L"../../Textures/gate.dds";
+    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+        mCommandList.Get(), gateTex->Filename.c_str(),
+        gateTex->Resource, gateTex->UploadHeap));
+
     auto treeArrayTex = std::make_unique<Texture>();
     treeArrayTex->Name = "treeArrayTex";
     treeArrayTex->Filename = L"../../Textures/treeArray.dds";
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), treeArrayTex->Filename.c_str(),
         treeArrayTex->Resource, treeArrayTex->UploadHeap));
+
+
 
     mTextures[bricksTex->Name] = std::move(bricksTex);
     mTextures[stoneTex->Name] = std::move(stoneTex);
@@ -746,7 +757,9 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
     mTextures[navyTex->Name] = std::move(navyTex);
     mTextures[brownTex->Name] = std::move(brownTex);
     mTextures[waterTex->Name] = std::move(waterTex);
+    mTextures[gateTex->Name] = std::move(gateTex);
     mTextures[treeArrayTex->Name] = std::move(treeArrayTex);
+
 
     ::OutputDebugStringA(">>> LoadTextures DONE!\n");
 }
@@ -918,7 +931,7 @@ void ShapesApp::BuildDescriptorHeaps()
     // Create the SRV heap.
     //
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 16; //EDIT NUM OF DESCRIPTORS
+    srvHeapDesc.NumDescriptors = 18; //EDIT NUM OF DESCRIPTORS
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -944,6 +957,8 @@ void ShapesApp::BuildDescriptorHeaps()
     auto brownTex = mTextures["brownTex"]->Resource;
     auto waterTex = mTextures["waterTex"]->Resource;
     auto treeArrayTex = mTextures["treeArrayTex"]->Resource;
+    auto gateTex = mTextures["gateTex"]->Resource;
+
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -1028,6 +1043,11 @@ void ShapesApp::BuildDescriptorHeaps()
     srvDesc.Format = waterTex->GetDesc().Format;
     srvDesc.Texture2D.MipLevels = waterTex->GetDesc().MipLevels;
     md3dDevice->CreateShaderResourceView(waterTex.Get(), &srvDesc, hDescriptor);
+
+    hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+    srvDesc.Format = gateTex->GetDesc().Format;
+    srvDesc.Texture2D.MipLevels = gateTex->GetDesc().MipLevels;
+    md3dDevice->CreateShaderResourceView(gateTex.Get(), &srvDesc, hDescriptor);
 
     // next descriptor
     hDescriptor.Offset(1, mCbvSrvDescriptorSize);
@@ -1993,6 +2013,16 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     water->Roughness = 0.0f;
     mat_idx++;
 
+    auto gate0 = std::make_unique<Material>();
+    gate0->Name = "gate0";
+    gate0->MatCBIndex = mat_idx;
+    gate0->DiffuseSrvHeapIndex = mat_idx;
+    gate0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f);
+    gate0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+    gate0->Roughness = 0.3f;
+    mat_idx++;
+
+
     auto treeSprites = std::make_unique<Material>();
     treeSprites->Name = "treeSprites";
     treeSprites->MatCBIndex = mat_idx;
@@ -2017,6 +2047,7 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     mMaterials["navy0"] = std::move(navy0);
     mMaterials["brown0"] = std::move(brown0);
     mMaterials["water"] = std::move(water);
+    mMaterials["gate0"] = std::move(gate0);
     mMaterials["treeSprites"] = std::move(treeSprites);
 
     ::OutputDebugStringA(">>> BuildMaterials DONE!\n");
@@ -2325,9 +2356,7 @@ void ShapesApp::BuildRenderItems()
         BuildOneRenderItem("charm", "charmGeo", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(-29, 34, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
     }
 
-    // gates
-    BuildOneRenderItem("gate", "gateGeo", "stone0", XMMatrixScaling(16, 24, 5), XMMatrixTranslation(0.0f, 11, -25), XMMatrixScaling(1, 1, 1), index_cache++);
-    BuildOneRenderItem("gate", "gateGeo", "stone0", XMMatrixScaling(10, 20, 5), XMMatrixTranslation(0.0f, 11, -12.7f), XMMatrixScaling(1, 1, 1), index_cache++);
+   
 
     //INNER
     // inner building
@@ -2375,6 +2404,42 @@ void ShapesApp::BuildRenderItems()
     {
         BuildOneRenderItem("prism", "prismGeo", "red0", XMMatrixRotationY(XMConvertToRadians(-90.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(14, 41, -12 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++);
     }
+
+
+    // gates
+   // BuildOneRenderItem("gate", "gateGeo", "gate0", XMMatrixScaling(16, 24, 5), XMMatrixTranslation(0.0f, 11, -25), XMMatrixScaling(1, 1, 1), index_cache++);
+    //BuildOneRenderItem("gate", "gateGeo", "gate0", XMMatrixScaling(10, 20, 5), XMMatrixTranslation(0.0f, 11, -12.7f), XMMatrixScaling(1, 1, 1), index_cache++);
+
+    auto shape_render_item = std::make_unique<RenderItem>();
+    XMStoreFloat4x4(&shape_render_item->World, XMMatrixScaling(16, 24, 2) * XMMatrixTranslation(0.0f, 11, -26.1));
+    XMStoreFloat4x4(&shape_render_item->TexTransform, XMMatrixScaling(1, 1, 1));
+    shape_render_item->ObjCBIndex = index_cache;
+    shape_render_item->Mat = mMaterials["gate0"].get();
+    shape_render_item->Geo = mGeometries["gateGeo"].get();
+    shape_render_item->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    shape_render_item->IndexCount = shape_render_item->Geo->DrawArgs["gate"].IndexCount;
+    shape_render_item->StartIndexLocation = shape_render_item->Geo->DrawArgs["gate"].StartIndexLocation;
+    shape_render_item->BaseVertexLocation = shape_render_item->Geo->DrawArgs["gate"].BaseVertexLocation;
+    index_cache++;
+
+    mRitemLayer[(int)RenderLayer::AlphaTested].push_back(shape_render_item.get());
+    mAllRitems.push_back(std::move(shape_render_item));
+
+    /*
+            auto shape_render_item = std::make_unique<RenderItem>();
+    XMStoreFloat4x4(&shape_render_item->World, scale_matrix * translate_matrix);
+    XMStoreFloat4x4(&shape_render_item->TexTransform, tex_scale_matrix);
+    shape_render_item->ObjCBIndex = obj_idx;
+    shape_render_item->Mat = mMaterials[material].get();
+    shape_render_item->Geo = mGeometries[shape_name].get();
+    shape_render_item->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    shape_render_item->IndexCount = shape_render_item->Geo->DrawArgs[shape_type].IndexCount;
+    shape_render_item->StartIndexLocation = shape_render_item->Geo->DrawArgs[shape_type].StartIndexLocation;
+    shape_render_item->BaseVertexLocation = shape_render_item->Geo->DrawArgs[shape_type].BaseVertexLocation;
+    mRitemLayer[(int)RenderLayer::Opaque].push_back(shape_render_item.get());
+    mAllRitems.push_back(std::move(shape_render_item));
+    
+    */
 
     auto treeSpritesRitem = std::make_unique<RenderItem>();
     treeSpritesRitem->World = MathHelper::Identity4x4();
