@@ -12,8 +12,8 @@ GeometryGenerator::MeshData GeometryGenerator::CreateTorus(float outterradius, f
 	MeshData meshData;
 
 	// The steps for each of the separate rotations
-	float thetaStep = 2.0f * XM_PI / sliceCount; // the steps around the ring
-	float phiStep = 2.0f * XM_PI / stackCount; // the steps around the cross section
+	float thetaStep = 2.0f * XM_PI / sliceCount; 
+	float phiStep = 2.0f * XM_PI / stackCount;
 
 	// For each slice around the circumference of the torus
 	for (uint32 i = 0; i <= sliceCount; ++i)
@@ -30,20 +30,6 @@ GeometryGenerator::MeshData GeometryGenerator::CreateTorus(float outterradius, f
 			v.Position.x = outterradius * cosf(theta) + innerRadius * sinf(phi) * cosf(theta);
 			v.Position.y = innerRadius * cosf(phi);
 			v.Position.z = outterradius * sinf(theta) + innerRadius * sinf(phi) * sinf(theta);
-
-			// Partial derivative of P with respect to theta
-			v.TangentU.x = -innerRadius * sinf(phi) * sinf(theta);
-			v.TangentU.y = 0.0f;
-			v.TangentU.z = innerRadius * sinf(phi) * cosf(theta);
-
-			XMVECTOR T = XMLoadFloat3(&v.TangentU);
-			XMStoreFloat3(&v.TangentU, XMVector3Normalize(T));
-
-			XMVECTOR p = XMLoadFloat3(&v.Position);
-			XMStoreFloat3(&v.Normal, XMVector3Normalize(p));
-
-			v.TexC.x = theta / XM_2PI;
-			v.TexC.y = phi / XM_PI;
 
 			meshData.Vertices.push_back(v);
 		}
