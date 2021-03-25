@@ -634,7 +634,7 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
 
     auto tileTex = std::make_unique<Texture>();
     tileTex->Name = "tileTex";
-    tileTex->Filename = L"../../Textures/groundTex.dds";
+    tileTex->Filename = L"../../Textures/groundTex1.dds";
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), tileTex->Filename.c_str(),
         tileTex->Resource, tileTex->UploadHeap));
@@ -2009,7 +2009,7 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     water->Name = "water";
     water->MatCBIndex = mat_idx; //EDIT
     water->DiffuseSrvHeapIndex = mat_idx; //EDIT
-    water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.6f);
+    water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.4f);
     water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
     water->Roughness = 0.0f;
     mat_idx++;
