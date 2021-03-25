@@ -1,5 +1,6 @@
 ﻿//***************************************************************************************
 // GAME3111_A2_TrungLe_MehraraSarabi
+// Mehrara Sarabi 101247463
 //
 // Hold down '1' key to view scene in wireframe mode.
 //***************************************************************************************
@@ -735,7 +736,7 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
 
     auto treeArrayTex = std::make_unique<Texture>();
     treeArrayTex->Name = "treeArrayTex";
-    treeArrayTex->Filename = L"../../Textures/treeArray.dds";
+    treeArrayTex->Filename = L"../../Textures/newTree.dds";
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), treeArrayTex->Filename.c_str(),
         treeArrayTex->Resource, treeArrayTex->UploadHeap));
@@ -1695,8 +1696,8 @@ void ShapesApp::BuildTreeSpritesGeometry()
         XMFLOAT2 Size;
     };
 
-    static const int treeCount = 25;
-    std::array<TreeSpriteVertex, 25> vertices;
+    static const int treeCount = 16;
+    std::array<TreeSpriteVertex, 16> vertices;
     for (UINT i = 0; i < treeCount; ++i)
     {
         float x = MathHelper::RandF(-100.0f, 100.0f);
@@ -1707,7 +1708,7 @@ void ShapesApp::BuildTreeSpritesGeometry()
         y += 8.0f;
 
         vertices[i].Pos = XMFLOAT3(x, y, z);
-        vertices[i].Size = XMFLOAT2(20.0f, 20.0f);
+        vertices[i].Size = XMFLOAT2(30.0f, 35.0f);
     }
 
     std::array<std::uint16_t, 16> indices =
