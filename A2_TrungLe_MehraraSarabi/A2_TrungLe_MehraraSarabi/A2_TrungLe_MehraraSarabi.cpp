@@ -1695,12 +1695,12 @@ void ShapesApp::BuildTreeSpritesGeometry()
         XMFLOAT2 Size;
     };
 
-    static const int treeCount = 16;
-    std::array<TreeSpriteVertex, 16> vertices;
+    static const int treeCount = 25;
+    std::array<TreeSpriteVertex, 25> vertices;
     for (UINT i = 0; i < treeCount; ++i)
     {
-        float x = MathHelper::RandF(-45.0f, 45.0f);
-        float z = MathHelper::RandF(-45.0f, 45.0f);
+        float x = MathHelper::RandF(-100.0f, 100.0f);
+        float z = MathHelper::RandF(-100.0f, 100.0f);
         float y = GetHillsHeight(x, z);
 
         // Move tree slightly above land height.
@@ -2008,8 +2008,8 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     water->Name = "water";
     water->MatCBIndex = mat_idx; //EDIT
     water->DiffuseSrvHeapIndex = mat_idx; //EDIT
-    water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    water->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+    water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.6f);
+    water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
     water->Roughness = 0.0f;
     mat_idx++;
 
