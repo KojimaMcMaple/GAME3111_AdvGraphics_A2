@@ -9,6 +9,7 @@
 #include "../../Common/UploadBuffer.h"
 #include "../../Common/GeometryGenerator.h"
 #include "FrameResource.h"
+#include "Waves.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -20,17 +21,16 @@ using namespace DirectX::PackedVector;
 const int gNumFrameResources = 3;
 
 enum class ShapeType {
-	kBox = 0,
-	kSphere,
-	kGeosphere,
-	kCylinder,
-	kGrid,
-	kQuad,
-	kDiamond,
-	kUndefined
+    kBox = 0,
+    kSphere,
+    kGeosphere,
+    kCylinder,
+    kGrid,
+    kQuad,
+    kDiamond,
+    kUndefined
 };
 
-<<<<<<< HEAD
 enum class RenderLayer : int
 {
     Opaque = 0,
@@ -40,8 +40,6 @@ enum class RenderLayer : int
     Count
 };
 
-=======
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
 // Lightweight structure stores parameters to draw a shape.  This will
 // vary from app-to-app.
 struct RenderItem
@@ -98,18 +96,20 @@ private:
     virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
 
     void OnKeyboardInput(const GameTimer& gt);
-	void UpdateCamera(const GameTimer& gt);
+    void UpdateCamera(const GameTimer& gt);
     void AnimateMaterials(const GameTimer& gt);
-	void UpdateObjectCBs(const GameTimer& gt);
+    void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMaterialCBs(const GameTimer& gt);
-	void UpdateMainPassCB(const GameTimer& gt);
+    void UpdateMainPassCB(const GameTimer& gt);
+    void UpdateWaves(const GameTimer& gt);
 
     void LoadTextures();
     void BuildRootSignature();
     void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
-    void BuildOneShapeGeometry(GeometryGenerator::MeshData mesh, SubmeshGeometry& submesh, UINT& vert_offset, UINT& idx_offset);
-    void BuildPositionAndColorForAllVertices(GeometryGenerator::MeshData mesh, XMFLOAT4 mesh_color, std::vector<Vertex>& vertices, UINT& vert_idx, std::vector<std::uint16_t>& indices);
+    void BuildLandGeometry();
+    void BuildWavesGeometry();
+    void BuildOneShapeGeometry(std::string shape_type, std::string shape_name, float param_a, float param_b, float param_c, float param_d = -999, float param_e = -999);
     void BuildShapeGeometry();
     void BuildTreeSpritesGeometry();
     void BuildPSOs();
@@ -118,10 +118,13 @@ private:
     void BuildRenderItems();
     void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
     void BuildConstantBufferViews();
-    void BuildOneRenderItem(std::string shape_type, std::string material, XMMATRIX scale_matrix, XMMATRIX translate_matrix, XMMATRIX tex_scale_matrix, UINT obj_idx);
-    void BuildOneRenderItem(std::string shape_type, std::string material, XMMATRIX rotate_matrix, XMMATRIX scale_matrix, XMMATRIX translate_matrix, XMMATRIX tex_scale_matrix, UINT obj_idx);
-    
+    void BuildOneRenderItem(std::string shape_type, std::string shape_name, std::string material, XMMATRIX scale_matrix, XMMATRIX translate_matrix, XMMATRIX tex_scale_matrix, UINT obj_idx);
+    void BuildOneRenderItem(std::string shape_type, std::string shape_name, std::string material, XMMATRIX rotate_matrix, XMMATRIX scale_matrix, XMMATRIX translate_matrix, XMMATRIX tex_scale_matrix, UINT obj_idx);
+
     std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+
+    float GetHillsHeight(float x, float z)const;
+    XMFLOAT3 GetHillsNormal(float x, float z)const;
 private:
 
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
@@ -133,23 +136,27 @@ private:
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr; //OBSOLETE
 
-	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+    ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
-	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+    std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
     std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
     std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
-	std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
+    std::unordered_map<std::string, ComPtr<ID3DBlob>> mShaders;
     std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 
     //std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
     std::vector<D3D12_INPUT_ELEMENT_DESC> mStdInputLayout;
     std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout;
 
-	// List of all the render items.
-	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
+    RenderItem* mWavesRitem = nullptr;
 
-	// Render items divided by PSO.
-	std::vector<RenderItem*> mOpaqueRitems;
+    // List of all the render items.
+    std::vector<std::unique_ptr<RenderItem>> mAllRitems;
+
+    // Render items divided by PSO.
+    std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
+
+    std::unique_ptr<Waves> mWaves;
 
     PassConstants mMainPassCB;
 
@@ -157,12 +164,12 @@ private:
 
     bool mIsWireframe = false;
 
-	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
-	XMFLOAT4X4 mView = MathHelper::Identity4x4();
-	XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+    XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT4X4 mView = MathHelper::Identity4x4();
+    XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 
-    float mTheta = 1.5f*XM_PI;
-    float mPhi = 0.2f*XM_PI;
+    float mTheta = 1.5f * XM_PI;
+    float mPhi = 0.2f * XM_PI;
     float mRadius = 120.0f;
 
     POINT mLastMousePos;
@@ -179,12 +186,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     try
     {
         ShapesApp theApp(hInstance);
-        if(!theApp.Initialize())
+        if (!theApp.Initialize())
             return 0;
 
         return theApp.Run();
     }
-    catch(DxException& e)
+    catch (DxException& e)
     {
         MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
         return 0;
@@ -198,13 +205,15 @@ ShapesApp::ShapesApp(HINSTANCE hInstance)
 
 ShapesApp::~ShapesApp()
 {
-    if(md3dDevice != nullptr)
+    if (md3dDevice != nullptr)
         FlushCommandQueue();
 }
 
 bool ShapesApp::Initialize()
 {
-    if(!D3DApp::Initialize())
+    ::OutputDebugStringA(">>> Init started...\n");
+
+    if (!D3DApp::Initialize())
         return false;
 
     // Reset the command list to prep for initialization commands.
@@ -214,10 +223,14 @@ bool ShapesApp::Initialize()
     // so we have to query this information.
     mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+    mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+
     LoadTextures();
     BuildRootSignature();
     BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
+    BuildLandGeometry();
+    BuildWavesGeometry();
     BuildShapeGeometry();
     BuildTreeSpritesGeometry();
     BuildMaterials();
@@ -234,22 +247,25 @@ bool ShapesApp::Initialize()
     // Wait until initialization is complete.
     FlushCommandQueue();
 
+    ::OutputDebugStringA(">>> Init DONE!\n");
+
     return true;
 }
- 
+
 void ShapesApp::OnResize()
 {
     D3DApp::OnResize();
 
     // The window resized, so update the aspect ratio and recompute the projection matrix.
-    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
+    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
     XMStoreFloat4x4(&mProj, P);
 }
 
 void ShapesApp::Update(const GameTimer& gt)
 {
+    ::OutputDebugStringA(">>> Update started...\n");
     OnKeyboardInput(gt);
-	UpdateCamera(gt);
+    UpdateCamera(gt);
 
     // Cycle through the circular frame resource array.
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
@@ -257,7 +273,7 @@ void ShapesApp::Update(const GameTimer& gt)
 
     // Has the GPU finished processing the commands of the current frame resource?
     // If not, wait until the GPU has completed commands up to this fence point.
-    if(mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
+    if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
     {
         HANDLE eventHandle = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
         ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
@@ -269,10 +285,13 @@ void ShapesApp::Update(const GameTimer& gt)
     UpdateObjectCBs(gt);
     UpdateMaterialCBs(gt);
     UpdateMainPassCB(gt);
+    UpdateWaves(gt);
+    ::OutputDebugStringA(">>> Update DONE!\n");
 }
 
 void ShapesApp::Draw(const GameTimer& gt)
 {
+    ::OutputDebugStringA(">>> Draw started...\n");
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
     // Reuse the memory associated with command recording.
@@ -281,7 +300,7 @@ void ShapesApp::Draw(const GameTimer& gt)
 
     // A command list can be reset after it has been added to the command queue via ExecuteCommandList.
     // Reusing the command list reuses memory.
-    if(mIsWireframe)
+    if (mIsWireframe)
     {
         ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
     }
@@ -294,8 +313,8 @@ void ShapesApp::Draw(const GameTimer& gt)
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
     // Indicate a state transition on the resource usage.
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+        D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
     // Clear the back buffer and depth buffer.
     //mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
@@ -308,7 +327,7 @@ void ShapesApp::Draw(const GameTimer& gt)
     /*ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
     mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+    mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
     int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
     auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
@@ -323,7 +342,7 @@ void ShapesApp::Draw(const GameTimer& gt)
     auto passCB = mCurrFrameResource->PassCB->Resource();
     mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 
-    DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
+    DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
     mCommandList->SetPipelineState(mPSOs["alphaTested"].Get());
     DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AlphaTested]);
@@ -335,8 +354,8 @@ void ShapesApp::Draw(const GameTimer& gt)
     DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
     // Indicate a state transition on the resource usage.
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+        D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     // Done recording commands.
     ThrowIfFailed(mCommandList->Close());
@@ -347,15 +366,17 @@ void ShapesApp::Draw(const GameTimer& gt)
 
     // Swap the back and front buffers
     ThrowIfFailed(mSwapChain->Present(0, 0));
-	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+    mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
     // Advance the fence value to mark commands up to this fence point.
     mCurrFrameResource->Fence = ++mCurrentFence;
-    
+
     // Add an instruction to the command queue to set a new fence point. 
     // Because we are on the GPU timeline, the new fence point won't be 
     // set until the GPU finishes processing all the commands prior to this Signal().
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+
+    ::OutputDebugStringA(">>> Draw DONE!\n");
 }
 
 void ShapesApp::OnMouseDown(WPARAM btnState, int x, int y)
@@ -373,11 +394,11 @@ void ShapesApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void ShapesApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-    if((btnState & MK_LBUTTON) != 0)
+    if ((btnState & MK_LBUTTON) != 0)
     {
         // Make each pixel correspond to a quarter of a degree.
-        float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
-        float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
+        float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
+        float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
 
         // Update angles based on input to orbit camera around box.
         mTheta += dx;
@@ -386,74 +407,93 @@ void ShapesApp::OnMouseMove(WPARAM btnState, int x, int y)
         // Restrict the angle mPhi.
         mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
     }
-    else if((btnState & MK_RBUTTON) != 0)
+    else if ((btnState & MK_RBUTTON) != 0)
     {
         // Make each pixel correspond to 0.2 unit in the scene.
-        float dx = 0.05f*static_cast<float>(x - mLastMousePos.x);
-        float dy = 0.05f*static_cast<float>(y - mLastMousePos.y);
+        float dx = 0.05f * static_cast<float>(x - mLastMousePos.x);
+        float dy = 0.05f * static_cast<float>(y - mLastMousePos.y);
 
         // Update the camera radius based on input.
         mRadius += dx - dy;
 
         // Restrict the radius.
-        mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
+        mRadius = MathHelper::Clamp(mRadius, 5.0f, 300.0f); //EDIT MOUSE DISTANCE
     }
 
     mLastMousePos.x = x;
     mLastMousePos.y = y;
 }
- 
+
 void ShapesApp::OnKeyboardInput(const GameTimer& gt)
 {
-    if(GetAsyncKeyState('1') & 0x8000)
+    if (GetAsyncKeyState('1') & 0x8000)
         mIsWireframe = true;
     else
         mIsWireframe = false;
 }
- 
+
 void ShapesApp::UpdateCamera(const GameTimer& gt)
 {
-	// Convert Spherical to Cartesian coordinates.
-	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
-	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
-	mEyePos.y = mRadius*cosf(mPhi);
+    // Convert Spherical to Cartesian coordinates.
+    mEyePos.x = mRadius * sinf(mPhi) * cosf(mTheta);
+    mEyePos.z = mRadius * sinf(mPhi) * sinf(mTheta);
+    mEyePos.y = mRadius * cosf(mPhi);
 
-	// Build the view matrix.
-	XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
-	XMVECTOR target = XMVectorZero();
-	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    // Build the view matrix.
+    XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
+    XMVECTOR target = XMVectorZero();
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
-	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-	XMStoreFloat4x4(&mView, view);
+    XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+    XMStoreFloat4x4(&mView, view);
 }
 
 void ShapesApp::AnimateMaterials(const GameTimer& gt)
 {
+    // Scroll the water material texture coordinates.
+    auto waterMat = mMaterials["water"].get();
 
+    float& tu = waterMat->MatTransform(3, 0);
+    float& tv = waterMat->MatTransform(3, 1);
+
+    tu += 0.1f * gt.DeltaTime();
+    tv += 0.02f * gt.DeltaTime();
+
+    if (tu >= 1.0f)
+        tu -= 1.0f;
+
+    if (tv >= 1.0f)
+        tv -= 1.0f;
+
+    waterMat->MatTransform(3, 0) = tu;
+    waterMat->MatTransform(3, 1) = tv;
+
+    // Material has changed, so need to update cbuffer.
+    waterMat->NumFramesDirty = gNumFrameResources;
 }
 
 void ShapesApp::UpdateObjectCBs(const GameTimer& gt)
 {
-	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-	for(auto& e : mAllRitems)
-	{
-		// Only update the cbuffer data if the constants have changed.  
-		// This needs to be tracked per frame resource.
-		if(e->NumFramesDirty > 0)
-		{
-			XMMATRIX world = XMLoadFloat4x4(&e->World);
+    auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+    for (auto& e : mAllRitems)
+    {
+        // Only update the cbuffer data if the constants have changed.  
+        // This needs to be tracked per frame resource.
+        if (e->NumFramesDirty > 0)
+        {
+            XMMATRIX world = XMLoadFloat4x4(&e->World);
             XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
 
-			ObjectConstants objConstants;
-			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+            ObjectConstants objConstants;
+            XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
             XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
 
-			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+            currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
-			// Next FrameResource need to be updated too.
-			e->NumFramesDirty--;
-		}
-	}
+            // Next FrameResource need to be updated too.
+            e->NumFramesDirty--;
+        }
+    }
 }
 
 void ShapesApp::UpdateMaterialCBs(const GameTimer& gt)
@@ -485,41 +525,43 @@ void ShapesApp::UpdateMaterialCBs(const GameTimer& gt)
 
 void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 {
-	XMMATRIX view = XMLoadFloat4x4(&mView);
-	XMMATRIX proj = XMLoadFloat4x4(&mProj);
+    XMMATRIX view = XMLoadFloat4x4(&mView);
+    XMMATRIX proj = XMLoadFloat4x4(&mProj);
 
-	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
-	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+    XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+    XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+    XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
 
-	XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
-	XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
-	XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
-	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
-	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
-	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-	mMainPassCB.EyePosW = mEyePos;
-	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
-	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
-	mMainPassCB.NearZ = 1.0f;
-	mMainPassCB.FarZ = 1000.0f;
-	mMainPassCB.TotalTime = gt.TotalTime();
-	mMainPassCB.DeltaTime = gt.DeltaTime();
+    XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+    XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+    XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+    XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+    XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+    XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+    mMainPassCB.EyePosW = mEyePos;
+    mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
+    mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
+    mMainPassCB.NearZ = 1.0f;
+    mMainPassCB.FarZ = 1000.0f;
+    mMainPassCB.TotalTime = gt.TotalTime();
+    mMainPassCB.DeltaTime = gt.DeltaTime();
     mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
     mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-    mMainPassCB.Lights[0].Strength = { 0.8f, 0.8f, 0.8f };
+    mMainPassCB.Lights[0].Strength = { 0.7f, 0.7f, 0.8f };
     mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
     mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
     mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
     mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
 
-	auto currPassCB = mCurrFrameResource->PassCB.get();
-	currPassCB->CopyData(0, mMainPassCB);
+    auto currPassCB = mCurrFrameResource->PassCB.get();
+    currPassCB->CopyData(0, mMainPassCB);
 }
 
 void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
 {
+    ::OutputDebugStringA(">>> LoadTextures started...\n");
+
     auto bricksTex = std::make_unique<Texture>();
     bricksTex->Name = "bricksTex";
     bricksTex->Filename = L"../../Textures/bricks.dds";
@@ -536,40 +578,25 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
 
     auto tileTex = std::make_unique<Texture>();
     tileTex->Name = "tileTex";
-    tileTex->Filename = L"../../Textures/groundTex.dds";
+    tileTex->Filename = L"../../Textures/tile.dds";
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), tileTex->Filename.c_str(),
         tileTex->Resource, tileTex->UploadHeap));
 
     // BOOM
-     auto coneTex = std::make_unique<Texture>();
+    auto coneTex = std::make_unique<Texture>();
     coneTex->Name = "coneTex";
     coneTex->Filename = L"../../Textures/coneTex.dds";
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), coneTex->Filename.c_str(),
         coneTex->Resource, coneTex->UploadHeap));
 
-<<<<<<< HEAD
-    auto treeArrayTex = std::make_unique<Texture>();
-    treeArrayTex->Name = "treeArrayTex";
-    treeArrayTex->Filename = L"../../Textures/treeArray.dds";
-    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-        mCommandList.Get(), treeArrayTex->Filename.c_str(),
-        treeArrayTex->Resource, treeArrayTex->UploadHeap));
-
-    mTextures[bricksTex->Name] = std::move(bricksTex);
-    mTextures[stoneTex->Name] = std::move(stoneTex);
-    mTextures[tileTex->Name] = std::move(tileTex);
-    mTextures[waterTex->Name] = std::move(waterTex);
-    mTextures[treeArrayTex->Name] = std::move(treeArrayTex);
-=======
     auto cylinderTex = std::make_unique<Texture>();
     cylinderTex->Name = "cylinderTex";
     cylinderTex->Filename = L"../../Textures/cylinderTex.dds";
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), cylinderTex->Filename.c_str(),
         cylinderTex->Resource, cylinderTex->UploadHeap));
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
 
 
     auto innerBoxTex = std::make_unique<Texture>();
@@ -594,7 +621,7 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
         mCommandList.Get(), diamondTex->Filename.c_str(),
         diamondTex->Resource, diamondTex->UploadHeap));
 
-    
+
     auto cutPyramidTex = std::make_unique<Texture>();
     cutPyramidTex->Name = "cutPyramidTex";
     cutPyramidTex->Filename = L"../../Textures/cutPyramidTex.dds";
@@ -637,6 +664,19 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
         mCommandList.Get(), brownTex->Filename.c_str(),
         brownTex->Resource, brownTex->UploadHeap));
 
+    auto waterTex = std::make_unique<Texture>();
+    waterTex->Name = "waterTex";
+    waterTex->Filename = L"../../Textures/water1.dds";
+    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+        mCommandList.Get(), waterTex->Filename.c_str(),
+        waterTex->Resource, waterTex->UploadHeap));
+
+    auto treeArrayTex = std::make_unique<Texture>();
+    treeArrayTex->Name = "treeArrayTex";
+    treeArrayTex->Filename = L"../../Textures/treeArray.dds";
+    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+        mCommandList.Get(), treeArrayTex->Filename.c_str(),
+        treeArrayTex->Resource, treeArrayTex->UploadHeap));
 
     mTextures[bricksTex->Name] = std::move(bricksTex);
     mTextures[stoneTex->Name] = std::move(stoneTex);
@@ -652,11 +692,51 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
     mTextures[cyanTex->Name] = std::move(cyanTex);
     mTextures[navyTex->Name] = std::move(navyTex);
     mTextures[brownTex->Name] = std::move(brownTex);
+    mTextures[waterTex->Name] = std::move(waterTex);
+    mTextures[treeArrayTex->Name] = std::move(treeArrayTex);
 
-
+    ::OutputDebugStringA(">>> LoadTextures DONE!\n");
 }
 
 
+void ShapesApp::UpdateWaves(const GameTimer& gt)
+{
+    // Every quarter second, generate a random wave.
+    static float t_base = 0.0f;
+    if ((mTimer.TotalTime() - t_base) >= 0.25f)
+    {
+        t_base += 0.25f;
+
+        int i = MathHelper::Rand(4, mWaves->RowCount() - 5);
+        int j = MathHelper::Rand(4, mWaves->ColumnCount() - 5);
+
+        float r = MathHelper::RandF(0.2f, 0.5f);
+
+        mWaves->Disturb(i, j, r);
+    }
+
+    // Update the wave simulation.
+    mWaves->Update(gt.DeltaTime());
+
+    // Update the wave vertex buffer with the new solution.
+    auto currWavesVB = mCurrFrameResource->WavesVB.get();
+    for (int i = 0; i < mWaves->VertexCount(); ++i)
+    {
+        Vertex v;
+        v.Pos = mWaves->Position(i);
+        v.Normal = mWaves->Normal(i);
+
+        // Derive tex-coords from position by 
+        // mapping [-w/2,w/2] --> [0,1]
+        v.TexC.x = 0.5f + v.Pos.x / mWaves->Width();
+        v.TexC.y = 0.5f - v.Pos.z / mWaves->Depth();
+
+        currWavesVB->CopyData(i, v);
+    }
+
+    // Set the dynamic VB of the wave renderitem to the current frame VB.
+    mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
+}
 
 //assuming we have n renter items, we can populate the CBV heap with the following code where descriptors 0 to n-
 //1 contain the object CBVs for the 0th frame resource, descriptors n to 2n−1 contains the
@@ -665,30 +745,32 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
 //0th, 1st, and 2nd frame resource
 void ShapesApp::BuildConstantBufferViews()
 {
+    ::OutputDebugStringA(">>> BuildConstantBufferViews started...\n");
+
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
-    UINT objCount = (UINT)mOpaqueRitems.size();
+    UINT objCount = (UINT)mRitemLayer[(int)RenderLayer::Count].size();
 
     // Need a CBV descriptor for each object for each frame resource.
-    for(int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
+    for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
     {
         auto objectCB = mFrameResources[frameIndex]->ObjectCB->Resource();
-        for(UINT i = 0; i < objCount; ++i)
+        for (UINT i = 0; i < objCount; ++i)
         {
             D3D12_GPU_VIRTUAL_ADDRESS cbAddress = objectCB->GetGPUVirtualAddress();
 
             // Offset to the ith object constant buffer in the buffer.
-            cbAddress += i*objCBByteSize;
+            cbAddress += i * objCBByteSize;
 
             // Offset to the object cbv in the descriptor heap.
-            int heapIndex = frameIndex*objCount + i;
+            int heapIndex = frameIndex * objCount + i;
 
-			//we can get a handle to the first descriptor in a heap with the ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart
+            //we can get a handle to the first descriptor in a heap with the ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart
             auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 
-			//our heap has more than one descriptor,we need to know the size to increment in the heap to get to the next descriptor
-			//This is hardware specific, so we have to query this information from the device, and it depends on
-			//the heap type.Recall that our D3DApp class caches this information: 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            //our heap has more than one descriptor,we need to know the size to increment in the heap to get to the next descriptor
+            //This is hardware specific, so we have to query this information from the device, and it depends on
+            //the heap type.Recall that our D3DApp class caches this information: 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
             handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
 
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
@@ -702,7 +784,7 @@ void ShapesApp::BuildConstantBufferViews()
     UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
     // Last three descriptors are the pass CBVs for each frame resource.
-    for(int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
+    for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
     {
         auto passCB = mFrameResources[frameIndex]->PassCB->Resource();
         D3D12_GPU_VIRTUAL_ADDRESS cbAddress = passCB->GetGPUVirtualAddress();
@@ -715,15 +797,19 @@ void ShapesApp::BuildConstantBufferViews()
         D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
         cbvDesc.BufferLocation = cbAddress;
         cbvDesc.SizeInBytes = passCBByteSize;
-        
+
         md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
     }
+
+    ::OutputDebugStringA(">>> BuildConstantBufferViews DONE!\n");
 }
 
 //A root signature defines what resources need to be bound to the pipeline before issuing a draw call and
 //how those resources get mapped to shader input registers. there is a limit of 64 DWORDs that can be put in a root signature.
 void ShapesApp::BuildRootSignature()
 {
+    ::OutputDebugStringA(">>> BuildRootSignature started...\n");
+
     CD3DX12_DESCRIPTOR_RANGE texTable;
     texTable.Init(
         D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
@@ -731,18 +817,19 @@ void ShapesApp::BuildRootSignature()
         0); // register t0
 
     // Root parameter can be a table, root descriptor or root constants.
-    CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+    CD3DX12_ROOT_PARAMETER slotRootParameter[5]; //EDIT
 
     // Perfomance TIP: Order from most frequent to least frequent.
     slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
     slotRootParameter[1].InitAsConstantBufferView(0); // register b0
     slotRootParameter[2].InitAsConstantBufferView(1); // register b1
     slotRootParameter[3].InitAsConstantBufferView(2); // register b2
+    slotRootParameter[4].InitAsConstantBufferView(3); // register b3 //EDIT
 
     auto staticSamplers = GetStaticSamplers();
 
     // A root signature is an array of root parameters.
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
         (UINT)staticSamplers.size(), staticSamplers.data(),
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -763,6 +850,8 @@ void ShapesApp::BuildRootSignature()
         serializedRootSig->GetBufferPointer(),
         serializedRootSig->GetBufferSize(),
         IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+
+    ::OutputDebugStringA(">>> BuildRootSignature DONE!\n");
 }
 
 //If we have 3 frame resources and n render items, then we have three 3n object constant
@@ -770,15 +859,13 @@ void ShapesApp::BuildRootSignature()
 //Thus we will need to modify our CBV heap to include the additional descriptors :
 void ShapesApp::BuildDescriptorHeaps()
 {
+    ::OutputDebugStringA(">>> BuildDescriptorHeaps started...\n");
+
     //
     // Create the SRV heap.
     //
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-<<<<<<< HEAD
-    srvHeapDesc.NumDescriptors = 5; //EDIT NUM OF DESCRIPTORS
-=======
-    srvHeapDesc.NumDescriptors = 15;
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
+    srvHeapDesc.NumDescriptors = 16; //EDIT NUM OF DESCRIPTORS
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -791,10 +878,6 @@ void ShapesApp::BuildDescriptorHeaps()
     auto bricksTex = mTextures["bricksTex"]->Resource;
     auto stoneTex = mTextures["stoneTex"]->Resource;
     auto tileTex = mTextures["tileTex"]->Resource;
-<<<<<<< HEAD
-    auto waterTex = mTextures["waterTex"]->Resource;
-    auto treeArrayTex = mTextures["treeArrayTex"]->Resource;
-=======
     auto coneTex = mTextures["coneTex"]->Resource;
     auto cylinderTex = mTextures["cylinderTex"]->Resource;
     auto innerBoxTex = mTextures["innerBoxTex"]->Resource;
@@ -806,28 +889,21 @@ void ShapesApp::BuildDescriptorHeaps()
     auto cyanTex = mTextures["cyanTex"]->Resource;
     auto navyTex = mTextures["navyTex"]->Resource;
     auto brownTex = mTextures["brownTex"]->Resource;
-
-
-
-
-
-
-
-
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
+    auto waterTex = mTextures["waterTex"]->Resource;
+    auto treeArrayTex = mTextures["treeArrayTex"]->Resource;
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = bricksTex->GetDesc().Format;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MostDetailedMip = 0;
-    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-    srvDesc.Format = bricksTex->GetDesc().Format;
     srvDesc.Texture2D.MipLevels = bricksTex->GetDesc().MipLevels;
+    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
     md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
 
     // next descriptor
     hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+
     srvDesc.Format = stoneTex->GetDesc().Format;
     srvDesc.Texture2D.MipLevels = stoneTex->GetDesc().MipLevels;
     md3dDevice->CreateShaderResourceView(stoneTex.Get(), &srvDesc, hDescriptor);
@@ -873,21 +949,6 @@ void ShapesApp::BuildDescriptorHeaps()
     srvDesc.Texture2D.MipLevels = holoTex->GetDesc().MipLevels;
     md3dDevice->CreateShaderResourceView(holoTex.Get(), &srvDesc, hDescriptor);
 
-<<<<<<< HEAD
-    // next descriptor
-    hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
-    auto desc = treeArrayTex->GetDesc();
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-    srvDesc.Format = treeArrayTex->GetDesc().Format;
-    srvDesc.Texture2DArray.MostDetailedMip = 0;
-    srvDesc.Texture2DArray.MipLevels = -1;
-    srvDesc.Texture2DArray.FirstArraySlice = 0;
-    srvDesc.Texture2DArray.ArraySize = treeArrayTex->GetDesc().DepthOrArraySize;
-    md3dDevice->CreateShaderResourceView(treeArrayTex.Get(), &srvDesc, hDescriptor);
-
-    ::OutputDebugStringA(">>> BuildDescriptorHeaps DONE!\n");
-=======
     hDescriptor.Offset(1, mCbvSrvDescriptorSize);
     srvDesc.Format = redTex->GetDesc().Format;
     srvDesc.Texture2D.MipLevels = redTex->GetDesc().MipLevels;
@@ -907,22 +968,39 @@ void ShapesApp::BuildDescriptorHeaps()
     srvDesc.Format = brownTex->GetDesc().Format;
     srvDesc.Texture2D.MipLevels = brownTex->GetDesc().MipLevels;
     md3dDevice->CreateShaderResourceView(brownTex.Get(), &srvDesc, hDescriptor);
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
+
+    // next descriptor
+    hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+
+    srvDesc.Format = waterTex->GetDesc().Format;
+    srvDesc.Texture2D.MipLevels = waterTex->GetDesc().MipLevels;
+    md3dDevice->CreateShaderResourceView(waterTex.Get(), &srvDesc, hDescriptor);
+
+    // next descriptor
+    hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+
+    auto desc = treeArrayTex->GetDesc();
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+    srvDesc.Format = treeArrayTex->GetDesc().Format;
+    srvDesc.Texture2DArray.MostDetailedMip = 0;
+    srvDesc.Texture2DArray.MipLevels = -1;
+    srvDesc.Texture2DArray.FirstArraySlice = 0;
+    srvDesc.Texture2DArray.ArraySize = treeArrayTex->GetDesc().DepthOrArraySize;
+    md3dDevice->CreateShaderResourceView(treeArrayTex.Get(), &srvDesc, hDescriptor);
+
+    ::OutputDebugStringA(">>> BuildDescriptorHeaps DONE!\n");
 }
 
 void ShapesApp::BuildShadersAndInputLayout()
 {
-<<<<<<< HEAD
     ::OutputDebugStringA(">>> BuildShadersAndInputLayout started...\n");
-    
+
     const D3D_SHADER_MACRO defines[] =
     {
         "FOG", "1",
         NULL, NULL
     };
 
-=======
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
     const D3D_SHADER_MACRO alphaTestDefines[] =
     {
         "FOG", "1",
@@ -944,7 +1022,6 @@ void ShapesApp::BuildShadersAndInputLayout()
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
-<<<<<<< HEAD
 
     mTreeSpriteInputLayout =
     {
@@ -953,46 +1030,240 @@ void ShapesApp::BuildShadersAndInputLayout()
     };
 
     ::OutputDebugStringA(">>> BuildShadersAndInputLayout DONE!\n");
-=======
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
 }
 
-void ShapesApp::BuildOneShapeGeometry(GeometryGenerator::MeshData mesh, SubmeshGeometry &submesh, UINT &vert_offset, UINT &idx_offset) {
-    // Define the SubmeshGeometry that cover different 
-    // regions of the vertex/index buffers.
-    submesh.IndexCount = (UINT)mesh.Indices32.size();
-    submesh.StartIndexLocation = vert_offset;
-    submesh.BaseVertexLocation = idx_offset;
-    //
-    // We are concatenating all the geometry into one big vertex/index buffer.  So
-    // define the regions in the buffer each submesh covers.
-    //
-    // Cache the vertex offsets to each object in the concatenated vertex buffer.
-    vert_offset += (UINT)mesh.Vertices.size();
+void ShapesApp::BuildLandGeometry()
+{
+    GeometryGenerator geoGen;
+    GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
 
-    // Cache the starting index for each object in the concatenated index buffer.
-    idx_offset += (UINT)mesh.Indices32.size();
-}
+    //
+    // Extract the vertex elements we are interested and apply the height function to
+    // each vertex.  In addition, color the vertices based on their height so we have
+    // sandy looking beaches, grassy low hills, and snow mountain peaks.
+    //
 
-void ShapesApp::BuildPositionAndColorForAllVertices(GeometryGenerator::MeshData mesh, XMFLOAT4 mesh_color, std::vector<Vertex>& vertices, UINT& vert_idx, std::vector<std::uint16_t>& indices) {
-    for (size_t i = 0; i < mesh.Vertices.size(); ++i, ++vert_idx) // ADD HERE
+    std::vector<Vertex> vertices(grid.Vertices.size());
+    for (size_t i = 0; i < grid.Vertices.size(); ++i)
     {
-        vertices[vert_idx].Pos = mesh.Vertices[i].Position;
-        vertices[vert_idx].Normal = mesh.Vertices[i].Normal;
-        vertices[vert_idx].TexC = mesh.Vertices[i].TexC;
-        //vertices[vert_idx].Color = XMFLOAT4(mesh_color);
+        auto& p = grid.Vertices[i].Position;
+        vertices[i].Pos = p;
+        vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
+        vertices[i].Normal = GetHillsNormal(p.x, p.z);
+        vertices[i].TexC = grid.Vertices[i].TexC;
     }
 
-    indices.insert(indices.end(), std::begin(mesh.GetIndices16()), std::end(mesh.GetIndices16())); // ADD HERE
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+    std::vector<std::uint16_t> indices = grid.GetIndices16();
+    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->Name = "landGeo";
+
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+    geo->VertexByteStride = sizeof(Vertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferByteSize = ibByteSize;
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = (UINT)indices.size();
+    submesh.StartIndexLocation = 0;
+    submesh.BaseVertexLocation = 0;
+
+    geo->DrawArgs["grid"] = submesh;
+
+    mGeometries["landGeo"] = std::move(geo);
+}
+
+void ShapesApp::BuildWavesGeometry()
+{
+    ::OutputDebugStringA(">>> BuildWavesGeometry started...\n");
+
+    std::vector<std::uint16_t> indices(3 * mWaves->TriangleCount()); // 3 indices per face
+    assert(mWaves->VertexCount() < 0x0000ffff);
+
+    // Iterate over each quad.
+    int m = mWaves->RowCount();
+    int n = mWaves->ColumnCount();
+    int k = 0;
+    for (int i = 0; i < m - 1; ++i)
+    {
+        for (int j = 0; j < n - 1; ++j)
+        {
+            indices[k] = i * n + j;
+            indices[k + 1] = i * n + j + 1;
+            indices[k + 2] = (i + 1) * n + j;
+
+            indices[k + 3] = (i + 1) * n + j;
+            indices[k + 4] = i * n + j + 1;
+            indices[k + 5] = (i + 1) * n + j + 1;
+
+            k += 6; // next quad
+        }
+    }
+
+    UINT vbByteSize = mWaves->VertexCount() * sizeof(Vertex);
+    UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->Name = "waterGeo";
+
+    // Set dynamically.
+    geo->VertexBufferCPU = nullptr;
+    geo->VertexBufferGPU = nullptr;
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+    geo->VertexByteStride = sizeof(Vertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferByteSize = ibByteSize;
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = (UINT)indices.size();
+    submesh.StartIndexLocation = 0;
+    submesh.BaseVertexLocation = 0;
+
+    geo->DrawArgs["grid"] = submesh;
+
+    mGeometries["waterGeo"] = std::move(geo);
+
+    ::OutputDebugStringA(">>> BuildWavesGeometry DONE!\n");
+}
+
+
+void ShapesApp::BuildOneShapeGeometry(std::string shape_type, std::string shape_name, float param_a, float param_b, float param_c, float param_d, float param_e) {
+    GeometryGenerator geoGen;
+    GeometryGenerator::MeshData mesh;
+    if (shape_type == "box" ||
+        shape_type == "outterWall" ||
+        shape_type == "tower" ||
+        shape_type == "gate") {
+        mesh = geoGen.CreateBox(param_a, param_b, param_c, param_d);
+    }
+    if (shape_type == "grid") {
+        mesh = geoGen.CreateGrid(param_a, param_b, param_c, param_d);
+    }
+    if (shape_type == "sphere") {
+        mesh = geoGen.CreateSphere(param_a, param_b, param_c);
+    }
+    if (shape_type == "cylinder" ||
+        shape_type == "rolo") {
+        mesh = geoGen.CreateCylinder(param_a, param_b, param_c, param_d, param_e);
+    }
+    if (shape_type == "wedge") {
+        mesh = geoGen.CreateWedge(param_a, param_b, param_c, param_d);
+    }
+    if (shape_type == "cone") {
+        mesh = geoGen.CreateCone(param_a, param_b, param_c, param_d);
+    }
+    if (shape_type == "pyramid") {
+        mesh = geoGen.CreatePyramid(param_a, param_b, param_c);
+    }
+    if (shape_type == "truncatedPyramid") {
+        mesh = geoGen.CreateTruncatedPyramid(param_a, param_b, param_c, param_d);
+    }
+    if (shape_type == "diamond" ||
+        shape_type == "charm") {
+        mesh = geoGen.CreateDiamond(param_a, param_b, param_c, param_d);
+    }
+    if (shape_type == "prism") {
+        mesh = geoGen.CreateTriangularPrism(param_a, param_b, param_c);
+    }
+    if (shape_type == "torus") {
+        mesh = geoGen.CreateTorus(param_a, param_b, param_c, param_d);
+    }
+
+
+    std::vector<Vertex> vertices(mesh.Vertices.size());
+    for (size_t i = 0; i < mesh.Vertices.size(); ++i)
+    {
+        auto& p = mesh.Vertices[i].Position;
+        vertices[i].Pos = p;
+        vertices[i].Normal = mesh.Vertices[i].Normal;
+        vertices[i].TexC = mesh.Vertices[i].TexC;
+    }
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+    std::vector<std::uint16_t> indices = mesh.GetIndices16();
+    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->Name = shape_name;
+
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+    geo->VertexByteStride = sizeof(Vertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferByteSize = ibByteSize;
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = (UINT)indices.size();
+    submesh.StartIndexLocation = 0;
+    submesh.BaseVertexLocation = 0;
+
+    geo->DrawArgs[shape_type] = submesh;
+
+    mGeometries[shape_name] = std::move(geo);
 }
 
 void ShapesApp::BuildShapeGeometry()
 {
+    ::OutputDebugStringA(">>> BuildShapeGeometry started...\n");
+
+    BuildOneShapeGeometry("box", "boxGeo", 1.0f, 1.0f, 1.0f, 3);
+    BuildOneShapeGeometry("outterWall", "outterWallGeo", 1.0f, 1.0f, 1.0f, 3);
+    BuildOneShapeGeometry("tower", "towerGeo", 1.0f, 1.0f, 1.0f, 3);
+    BuildOneShapeGeometry("gate", "gateGeo", 1.0f, 1.0f, 1.0f, 3);
+    BuildOneShapeGeometry("grid", "gridGeo", 70.0f, 70.0f, 60, 40);
+    BuildOneShapeGeometry("sphere", "sphereGeo", 0.5f, 20, 20);
+    BuildOneShapeGeometry("cylinder", "cylinderGeo", 1.0f, 1.0f, 2.0f, 20, 20);
+    BuildOneShapeGeometry("rolo", "roloGeo", 1.0f, 0.5f, 1.0f, 20, 20);
+    BuildOneShapeGeometry("wedge", "wedgeGeo", 1.0, 1.0f, 1.0, 3);
+    BuildOneShapeGeometry("cone", "coneGeo", 1.0f, 2.0f, 20, 20);
+    BuildOneShapeGeometry("pyramid", "pyramidGeo", 1.0, 1.0f, 20);
+    BuildOneShapeGeometry("truncatedPyramid", "truncatedPyramidGeo", 1.0, 1.0f, 0.5f, 1);
+    BuildOneShapeGeometry("diamond", "diamondGeo", 1.0f, 1.0f, 1.0f, 1);
+    BuildOneShapeGeometry("charm", "charmGeo", 1.0f, 1.0f, 1.0f, 1);
+    BuildOneShapeGeometry("prism", "prismGeo", 1.0f, 1.0f, 1);
+    BuildOneShapeGeometry("torus", "torusGeo", 2.0f, 0.5f, 20, 20);
+
+    // LEGACY CODES
+    /*
     GeometryGenerator geoGen;
     GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3); // ADD HERE
-    GeometryGenerator::MeshData outterWall = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3); 
-    GeometryGenerator::MeshData tower = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3); 
-    GeometryGenerator::MeshData gate = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3); 
+    GeometryGenerator::MeshData outterWall = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
+    GeometryGenerator::MeshData tower = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
+    GeometryGenerator::MeshData gate = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
     GeometryGenerator::MeshData grid = geoGen.CreateGrid(70.0f, 70.0f, 60, 40);
     GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
     GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(1.0f, 1.0f, 2.0f, 20, 20);
@@ -1050,7 +1321,7 @@ void ShapesApp::BuildShapeGeometry()
 
 
 
-    // Define the SubmeshGeometry that cover different 
+    // Define the SubmeshGeometry that cover different
     // regions of the vertex/index buffers.
 
     SubmeshGeometry boxSubmesh; // ADD HERE
@@ -1062,17 +1333,17 @@ void ShapesApp::BuildShapeGeometry()
     outterWallSubmesh.IndexCount = (UINT)outterWall.Indices32.size();
     outterWallSubmesh.StartIndexLocation = outterWallIndexOffset;
     outterWallSubmesh.BaseVertexLocation = outterWallVertexOffset;
-    
+
     SubmeshGeometry towerWallSubmesh;
     towerWallSubmesh.IndexCount = (UINT)tower.Indices32.size();
     towerWallSubmesh.StartIndexLocation = towerIndexOffset;
     towerWallSubmesh.BaseVertexLocation = towerVertexOffset;
-    
+
     SubmeshGeometry gateWallSubmesh;
     gateWallSubmesh.IndexCount = (UINT)gate.Indices32.size();
     gateWallSubmesh.StartIndexLocation = gateIndexOffset;
     gateWallSubmesh.BaseVertexLocation = gateVertexOffset;
-    
+
     SubmeshGeometry gridSubmesh;
     gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
     gridSubmesh.StartIndexLocation = gridIndexOffset;
@@ -1087,7 +1358,7 @@ void ShapesApp::BuildShapeGeometry()
     cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
     cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
     cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
-    
+
     SubmeshGeometry roloSubmesh;
     roloSubmesh.IndexCount = (UINT)rolo.Indices32.size();
     roloSubmesh.StartIndexLocation = roloIndexOffset;
@@ -1120,7 +1391,7 @@ void ShapesApp::BuildShapeGeometry()
     diamondSubmesh.IndexCount = (UINT)diamond.Indices32.size();
     diamondSubmesh.StartIndexLocation = diamondIndexOffset;
     diamondSubmesh.BaseVertexLocation = diamondVertexOffset;
-    
+
     SubmeshGeometry charmSubmesh;
     charmSubmesh.IndexCount = (UINT)charm.Indices32.size();
     charmSubmesh.StartIndexLocation = charmIndexOffset;
@@ -1176,21 +1447,21 @@ void ShapesApp::BuildShapeGeometry()
         vertices[k].Normal = outterWall.Vertices[i].Normal;
         vertices[k].TexC = outterWall.Vertices[i].TexC;
     }
-    
+
     for (size_t i = 0; i < tower.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = tower.Vertices[i].Position;
         vertices[k].Normal = tower.Vertices[i].Normal;
         vertices[k].TexC = tower.Vertices[i].TexC;
     }
-    
+
     for (size_t i = 0; i < gate.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = gate.Vertices[i].Position;
         vertices[k].Normal = gate.Vertices[i].Normal;
         vertices[k].TexC = gate.Vertices[i].TexC;
     }
-    
+
     for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = grid.Vertices[i].Position;
@@ -1211,7 +1482,7 @@ void ShapesApp::BuildShapeGeometry()
         vertices[k].Normal = cylinder.Vertices[i].Normal;
         vertices[k].TexC = cylinder.Vertices[i].TexC;
     }
-    
+
     for (size_t i = 0; i < rolo.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = rolo.Vertices[i].Position;
@@ -1254,7 +1525,7 @@ void ShapesApp::BuildShapeGeometry()
         vertices[k].Normal = diamond.Vertices[i].Normal;
         vertices[k].TexC = diamond.Vertices[i].TexC;
     }
-    
+
     for (size_t i = 0; i < charm.Vertices.size(); ++i, ++k)
     {
         vertices[k].Pos = charm.Vertices[i].Position;
@@ -1337,7 +1608,9 @@ void ShapesApp::BuildShapeGeometry()
 
 
 
-    mGeometries[geo->Name] = std::move(geo);
+    mGeometries[geo->Name] = std::move(geo);*/
+
+    ::OutputDebugStringA(">>> BuildShapeGeometry DONE!\n");
 }
 
 void ShapesApp::BuildTreeSpritesGeometry()
@@ -1405,35 +1678,37 @@ void ShapesApp::BuildTreeSpritesGeometry()
 
 void ShapesApp::BuildPSOs()
 {
+    ::OutputDebugStringA(">>> BuildPSOs started...\n");
+
     D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
-	//
-	// PSO for opaque objects.
-	//
+    //
+    // PSO for opaque objects.
+    //
     ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
-	opaquePsoDesc.InputLayout = { mStdInputLayout.data(), (UINT)mStdInputLayout.size() };
-	opaquePsoDesc.pRootSignature = mRootSignature.Get();
-	opaquePsoDesc.VS = 
-	{ 
-		reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()), 
-		mShaders["standardVS"]->GetBufferSize()
-	};
-	opaquePsoDesc.PS = 
-	{ 
-		reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
-		mShaders["opaquePS"]->GetBufferSize()
-	};
-	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    opaquePsoDesc.InputLayout = { mStdInputLayout.data(), (UINT)mStdInputLayout.size() };
+    opaquePsoDesc.pRootSignature = mRootSignature.Get();
+    opaquePsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
+        mShaders["standardVS"]->GetBufferSize()
+    };
+    opaquePsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+        mShaders["opaquePS"]->GetBufferSize()
+    };
+    opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     //opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.SampleMask = UINT_MAX;
-	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	opaquePsoDesc.NumRenderTargets = 1;
-	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
-	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 15 : 1;
-	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
-	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+    opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    opaquePsoDesc.SampleMask = UINT_MAX;
+    opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    opaquePsoDesc.NumRenderTargets = 1;
+    opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
+    opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+    opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+    opaquePsoDesc.DSVFormat = mDepthStencilFormat;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
 
@@ -1505,148 +1780,178 @@ void ShapesApp::BuildPSOs()
     //D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePsoDesc = opaquePsoDesc;
     //opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
     //ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+
+    ::OutputDebugStringA(">>> BuildPSOs DONE!\n");
 }
 
 void ShapesApp::BuildFrameResources()
 {
-    for(int i = 0; i < gNumFrameResources; ++i)
+    ::OutputDebugStringA(">>> BuildFrameResources started...\n");
+
+    for (int i = 0; i < gNumFrameResources; ++i)
     {
         mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-            1, (UINT)mAllRitems.size(), (UINT)mMaterials.size()));
+            1, (UINT)mAllRitems.size(), (UINT)mMaterials.size(), mWaves->VertexCount()));
     }
+
+    ::OutputDebugStringA(">>> BuildFrameResources DONE!\n");
 }
 
 void ShapesApp::BuildMaterials() //EDIT MATS HERE
 {
+    ::OutputDebugStringA(">>> BuildMaterials started...\n");
+
+    int mat_idx = 0;
+
     auto bricks0 = std::make_unique<Material>();
     bricks0->Name = "bricks0";
-    bricks0->MatCBIndex = 0;
-    bricks0->DiffuseSrvHeapIndex = 0;
+    bricks0->MatCBIndex = mat_idx;
+    bricks0->DiffuseSrvHeapIndex = mat_idx;
     bricks0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     bricks0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     bricks0->Roughness = 0.1f;
+    mat_idx++;
 
     auto stone0 = std::make_unique<Material>();
     stone0->Name = "stone0";
-    stone0->MatCBIndex = 1;
-    stone0->DiffuseSrvHeapIndex = 1;
+    stone0->MatCBIndex = mat_idx;
+    stone0->DiffuseSrvHeapIndex = mat_idx;
     stone0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     stone0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
     stone0->Roughness = 0.3f;
+    mat_idx++;
 
     auto tile0 = std::make_unique<Material>();
     tile0->Name = "tile0";
-    tile0->MatCBIndex = 2;
-    tile0->DiffuseSrvHeapIndex = 2;
+    tile0->MatCBIndex = mat_idx;
+    tile0->DiffuseSrvHeapIndex = mat_idx;
     tile0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     tile0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     tile0->Roughness = 0.3f;
-
+    mat_idx++;
 
     auto cone0 = std::make_unique<Material>();
     cone0->Name = "cone0";
-    cone0->MatCBIndex = 3;
-    cone0->DiffuseSrvHeapIndex = 3;
+    cone0->MatCBIndex = mat_idx;
+    cone0->DiffuseSrvHeapIndex = mat_idx;
     cone0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     cone0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     cone0->Roughness = 0.3f;
+    mat_idx++;
 
     auto cylinder0 = std::make_unique<Material>();
     cylinder0->Name = "cylinder0";
-    cylinder0->MatCBIndex = 4;
-    cylinder0->DiffuseSrvHeapIndex = 4;
+    cylinder0->MatCBIndex = mat_idx;
+    cylinder0->DiffuseSrvHeapIndex = mat_idx;
     cylinder0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     cylinder0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     cylinder0->Roughness = 0.3f;
-
+    mat_idx++;
 
     auto inner0 = std::make_unique<Material>();
     inner0->Name = "inner0";
-    inner0->MatCBIndex = 5;
-    inner0->DiffuseSrvHeapIndex = 5;
+    inner0->MatCBIndex = mat_idx;
+    inner0->DiffuseSrvHeapIndex = mat_idx;
     inner0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     inner0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     inner0->Roughness = 0.3f;
+    mat_idx++;
 
     auto outer0 = std::make_unique<Material>();
     outer0->Name = "outer0";
-    outer0->MatCBIndex = 6;
-    outer0->DiffuseSrvHeapIndex = 6;
+    outer0->MatCBIndex = mat_idx;
+    outer0->DiffuseSrvHeapIndex = mat_idx;
     outer0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     outer0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    outer0->Roughness = 0.3f;  
+    outer0->Roughness = 0.3f;
+    mat_idx++;
 
     auto diamond0 = std::make_unique<Material>();
     diamond0->Name = "diamond0";
-    diamond0->MatCBIndex = 7;
-    diamond0->DiffuseSrvHeapIndex = 7;
+    diamond0->MatCBIndex = mat_idx;
+    diamond0->DiffuseSrvHeapIndex = mat_idx;
     diamond0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     diamond0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     diamond0->Roughness = 0.3f;
+    mat_idx++;
 
     auto cutPyr0 = std::make_unique<Material>();
     cutPyr0->Name = "cutPyr0";
-    cutPyr0->MatCBIndex = 8;
-    cutPyr0->DiffuseSrvHeapIndex = 8;
+    cutPyr0->MatCBIndex = mat_idx;
+    cutPyr0->DiffuseSrvHeapIndex = mat_idx;
     cutPyr0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     cutPyr0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     cutPyr0->Roughness = 0.3f;
+    mat_idx++;
 
     auto holo0 = std::make_unique<Material>();
     holo0->Name = "holo0";
-    holo0->MatCBIndex = 9;
-    holo0->DiffuseSrvHeapIndex = 9;
+    holo0->MatCBIndex = mat_idx;
+    holo0->DiffuseSrvHeapIndex = mat_idx;
     holo0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     holo0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     holo0->Roughness = 0.3f;
+    mat_idx++;
 
     auto red0 = std::make_unique<Material>();
     red0->Name = "red0";
-    red0->MatCBIndex = 10;
-    red0->DiffuseSrvHeapIndex = 10;
+    red0->MatCBIndex = mat_idx;
+    red0->DiffuseSrvHeapIndex = mat_idx;
     red0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     red0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     red0->Roughness = 0.3f;
+    mat_idx++;
 
     auto cyan0 = std::make_unique<Material>();
     cyan0->Name = "cyan0";
-    cyan0->MatCBIndex = 11;
-    cyan0->DiffuseSrvHeapIndex = 11;
+    cyan0->MatCBIndex = mat_idx;
+    cyan0->DiffuseSrvHeapIndex = mat_idx;
     cyan0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     cyan0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     cyan0->Roughness = 0.3f;
+    mat_idx++;
 
     auto navy0 = std::make_unique<Material>();
     navy0->Name = "navy0";
-    navy0->MatCBIndex = 12;
-    navy0->DiffuseSrvHeapIndex = 12;
+    navy0->MatCBIndex = mat_idx;
+    navy0->DiffuseSrvHeapIndex = mat_idx;
     navy0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     navy0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     navy0->Roughness = 0.3f;
+    mat_idx++;
 
     auto brown0 = std::make_unique<Material>();
     brown0->Name = "brown0";
-    brown0->MatCBIndex = 13;
-    brown0->DiffuseSrvHeapIndex = 13;
+    brown0->MatCBIndex = mat_idx;
+    brown0->DiffuseSrvHeapIndex = mat_idx;
     brown0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     brown0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
     brown0->Roughness = 0.3f;
+    mat_idx++;
+
+    // This is not a good water material definition, but we do not have all the rendering
+    // tools we need (transparency, environment reflection), so we fake it for now.
+    auto water = std::make_unique<Material>();
+    water->Name = "water";
+    water->MatCBIndex = mat_idx; //EDIT
+    water->DiffuseSrvHeapIndex = mat_idx; //EDIT
+    water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    water->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+    water->Roughness = 0.0f;
+    mat_idx++;
 
     auto treeSprites = std::make_unique<Material>();
     treeSprites->Name = "treeSprites";
-    treeSprites->MatCBIndex = 3;
-    treeSprites->DiffuseSrvHeapIndex = 3;
+    treeSprites->MatCBIndex = mat_idx;
+    treeSprites->DiffuseSrvHeapIndex = mat_idx;
     treeSprites->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
     treeSprites->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
     treeSprites->Roughness = 0.125f;
+    mat_idx++;
 
     mMaterials["bricks0"] = std::move(bricks0);
     mMaterials["stone0"] = std::move(stone0);
     mMaterials["tile0"] = std::move(tile0);
-<<<<<<< HEAD
-    mMaterials["water"] = std::move(water);
-    mMaterials["treeSprites"] = std::move(treeSprites);
-=======
     mMaterials["cone0"] = std::move(cone0);
     mMaterials["cylinder0"] = std::move(cylinder0);
     mMaterials["inner0"] = std::move(inner0);
@@ -1658,46 +1963,46 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     mMaterials["cyan0"] = std::move(cyan0);
     mMaterials["navy0"] = std::move(navy0);
     mMaterials["brown0"] = std::move(brown0);
+    mMaterials["water"] = std::move(water);
+    mMaterials["treeSprites"] = std::move(treeSprites);
 
-
-
-
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
-
+    ::OutputDebugStringA(">>> BuildMaterials DONE!\n");
 }
 
 
-void ShapesApp::BuildOneRenderItem(std::string shape_type, std::string material, XMMATRIX scale_matrix, XMMATRIX translate_matrix, XMMATRIX tex_scale_matrix, UINT obj_idx)
+void ShapesApp::BuildOneRenderItem(std::string shape_type, std::string shape_name, std::string material, XMMATRIX scale_matrix, XMMATRIX translate_matrix, XMMATRIX tex_scale_matrix, UINT obj_idx)
 {
     auto shape_render_item = std::make_unique<RenderItem>();
     XMStoreFloat4x4(&shape_render_item->World, scale_matrix * translate_matrix);
     XMStoreFloat4x4(&shape_render_item->TexTransform, tex_scale_matrix);
     shape_render_item->ObjCBIndex = obj_idx;
     shape_render_item->Mat = mMaterials[material].get();
-    shape_render_item->Geo = mGeometries["shapeGeo"].get();
+    shape_render_item->Geo = mGeometries[shape_name].get();
     shape_render_item->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     shape_render_item->IndexCount = shape_render_item->Geo->DrawArgs[shape_type].IndexCount;
     shape_render_item->StartIndexLocation = shape_render_item->Geo->DrawArgs[shape_type].StartIndexLocation;
     shape_render_item->BaseVertexLocation = shape_render_item->Geo->DrawArgs[shape_type].BaseVertexLocation;
+    mRitemLayer[(int)RenderLayer::Opaque].push_back(shape_render_item.get());
     mAllRitems.push_back(std::move(shape_render_item));
 }
 
-void ShapesApp::BuildOneRenderItem(std::string shape_type, std::string material, XMMATRIX rotate_matrix, XMMATRIX scale_matrix, XMMATRIX translate_matrix, XMMATRIX tex_scale_matrix, UINT obj_idx)
+void ShapesApp::BuildOneRenderItem(std::string shape_type, std::string shape_name, std::string material, XMMATRIX rotate_matrix, XMMATRIX scale_matrix, XMMATRIX translate_matrix, XMMATRIX tex_scale_matrix, UINT obj_idx)
 {
     auto shape_render_item = std::make_unique<RenderItem>();
     XMStoreFloat4x4(&shape_render_item->World, scale_matrix * rotate_matrix * translate_matrix);
     XMStoreFloat4x4(&shape_render_item->TexTransform, tex_scale_matrix);
     shape_render_item->ObjCBIndex = obj_idx;
     shape_render_item->Mat = mMaterials[material].get();
-    shape_render_item->Geo = mGeometries["shapeGeo"].get();
+    shape_render_item->Geo = mGeometries[shape_name].get();
     shape_render_item->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     shape_render_item->IndexCount = shape_render_item->Geo->DrawArgs[shape_type].IndexCount;
     shape_render_item->StartIndexLocation = shape_render_item->Geo->DrawArgs[shape_type].StartIndexLocation;
     shape_render_item->BaseVertexLocation = shape_render_item->Geo->DrawArgs[shape_type].BaseVertexLocation;
+    mRitemLayer[(int)RenderLayer::Opaque].push_back(shape_render_item.get());
     mAllRitems.push_back(std::move(shape_render_item));
 }
 
-//
+
 //void ShapesApp::BuildRenderItems()
 //{
 //    /*auto boxRitem = std::make_unique<RenderItem>();
@@ -1778,10 +2083,11 @@ void ShapesApp::BuildOneRenderItem(std::string shape_type, std::string material,
 //}
 
 void ShapesApp::BuildRenderItems()
-{    
+{
+    ::OutputDebugStringA(">>> BuildRenderItems started...\n");
+
     UINT index_cache = 0;
 
-<<<<<<< HEAD
     // waves
     auto wavesRitem = std::make_unique<RenderItem>();
     wavesRitem->World = MathHelper::Identity4x4();
@@ -1816,210 +2122,207 @@ void ShapesApp::BuildRenderItems()
     mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
     mAllRitems.push_back(std::move(gridRitem));
 
-=======
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
     // grid
-    BuildOneRenderItem("grid", "tile0", XMMatrixScaling(2, 2, 2), XMMatrixTranslation(0.0f, 0.0f, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
+    BuildOneRenderItem("grid", "gridGeo", "tile0", XMMatrixScaling(2, 2, 2), XMMatrixTranslation(0.0f, 0.0f, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
 
     // OUTTER
     // front wall 
-    BuildOneRenderItem("outterWall", "outer0", XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(0.0f, 19, -25.0f), XMMatrixScaling(1, 1, 1), index_cache++);
+    BuildOneRenderItem("outterWall", "outterWallGeo", "outer0", XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(0.0f, 19, -25.0f), XMMatrixScaling(1, 1, 1), index_cache++);
     // back wall
-    BuildOneRenderItem("outterWall", "outer0", XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(0.0f, 19, 25.0f), XMMatrixScaling(1, 1, 1), index_cache++);
+    BuildOneRenderItem("outterWall", "outterWallGeo", "outer0", XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(0.0f, 19, 25.0f), XMMatrixScaling(1, 1, 1), index_cache++);
     // left wall 
-    BuildOneRenderItem("outterWall", "outer0", XMMatrixRotationY(XMConvertToRadians(-90.0f)), XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(-25.0f, 19, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
+    BuildOneRenderItem("outterWall", "outterWallGeo", "outer0", XMMatrixRotationY(XMConvertToRadians(-90.0f)), XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(-25.0f, 19, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
     // right wall
-    BuildOneRenderItem("outterWall", "outer0", XMMatrixRotationY(XMConvertToRadians(90.0f)), XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(25.0f, 19, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
-    
+    BuildOneRenderItem("outterWall", "outterWallGeo", "outer0", XMMatrixRotationY(XMConvertToRadians(90.0f)), XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(25.0f, 19, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
+
     const int kNumWallWedges = 12;
     // front wedge loop
-    for (int i = 0; i < kNumWallWedges; ++i){
-        BuildOneRenderItem("wedge", "cyan0", XMMatrixRotationY(XMConvertToRadians(180.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-20 + i * 4, 40, -26), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+    for (int i = 0; i < kNumWallWedges; ++i) {
+        BuildOneRenderItem("wedge", "wedgeGeo", "cyan0", XMMatrixRotationY(XMConvertToRadians(180.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-20 + i * 4, 40, -26), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
     }
     // back wedge loop
-    for (int i = 0; i < kNumWallWedges; ++i){
-        BuildOneRenderItem("wedge", "cyan0", XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-20 + i * 4, 40, 26), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+    for (int i = 0; i < kNumWallWedges; ++i) {
+        BuildOneRenderItem("wedge", "wedgeGeo", "cyan0", XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-20 + i * 4, 40, 26), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
     }
     // left wedge loop
-    for (int i = 0; i < kNumWallWedges; ++i){
-        BuildOneRenderItem("wedge", "cyan0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-26, 40, -20 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+    for (int i = 0; i < kNumWallWedges; ++i) {
+        BuildOneRenderItem("wedge", "wedgeGeo", "cyan0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-26, 40, -20 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
     }
     // right wedge loop
-    for (int i = 0; i < kNumWallWedges; ++i){
-        BuildOneRenderItem("wedge", "cyan0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(26, 40, -20 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+    for (int i = 0; i < kNumWallWedges; ++i) {
+        BuildOneRenderItem("wedge", "wedgeGeo", "cyan0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(26, 40, -20 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
     }
-    
+
     const int kNumWallPyramids = 6;
     // left pyramid loop
-    for (int i = 0; i < kNumWallPyramids; ++i){
-        BuildOneRenderItem("truncatedPyramid", "cutPyr0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(0), XMConvertToRadians(90)), XMMatrixScaling(3, 2, 3), XMMatrixTranslation(-28, 34, -17.5 + i * 7), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+    for (int i = 0; i < kNumWallPyramids; ++i) {
+        BuildOneRenderItem("truncatedPyramid", "truncatedPyramidGeo", "cutPyr0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(0), XMConvertToRadians(90)), XMMatrixScaling(3, 2, 3), XMMatrixTranslation(-28, 34, -17.5 + i * 7), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
     }
     // right pyramid loop
     for (int i = 0; i < kNumWallPyramids; ++i) {
-        BuildOneRenderItem("truncatedPyramid", "cutPyr0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(0), XMConvertToRadians(-90)), XMMatrixScaling(3, 2, 3), XMMatrixTranslation(28, 34, -17.5 + i * 7), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+        BuildOneRenderItem("truncatedPyramid", "truncatedPyramidGeo", "cutPyr0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(0), XMConvertToRadians(-90)), XMMatrixScaling(3, 2, 3), XMMatrixTranslation(28, 34, -17.5 + i * 7), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
     }
     // front rolo loop
     for (int i = 0; i < kNumWallPyramids; ++i) {
-        BuildOneRenderItem("rolo", "holo0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(-90), XMConvertToRadians(0), XMConvertToRadians(0)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-17.5 + i * 7, 34, -28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+        BuildOneRenderItem("rolo", "roloGeo", "holo0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(-90), XMConvertToRadians(0), XMConvertToRadians(0)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-17.5 + i * 7, 34, -28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
     }
     // back rolo loop
     for (int i = 0; i < kNumWallPyramids; ++i) {
-        BuildOneRenderItem("rolo", "holo0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(90), XMConvertToRadians(0), XMConvertToRadians(0)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-17.5 + i * 7, 34, 28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+        BuildOneRenderItem("rolo", "roloGeo", "holo0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(90), XMConvertToRadians(0), XMConvertToRadians(0)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-17.5 + i * 7, 34, 28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
     }
 
     // outer towers
     for (int i = 0; i < 2; ++i)
     {
         // left towers
-        BuildOneRenderItem("tower", "navy0", XMMatrixScaling(8, 50, 8), XMMatrixTranslation(-25, 24, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("tower", "towerGeo", "navy0", XMMatrixScaling(8, 50, 8), XMMatrixTranslation(-25, 24, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
         //right towers
-        BuildOneRenderItem("tower", "navy0", XMMatrixScaling(8, 50, 8), XMMatrixTranslation(25, 24, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("tower", "towerGeo", "navy0", XMMatrixScaling(8, 50, 8), XMMatrixTranslation(25, 24, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
     }
-    
+
     const int kNumPyramids = 4;
     const int kHalfNumPyramids = 2;
     //FL pyr
     //front row pyr
     for (int i = 0; i < kNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28 + i * 2, 50, -28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 2, min = -28
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28 + i * 2, 50, -28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 2, min = -28
     }
     //back row pyr
     for (int i = 0; i < kNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28 + i * 2, 50, -22), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28 + i * 2, 50, -22), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     //left col pyr
     for (int i = 0; i < kHalfNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28, 50, -26 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28, 50, -26 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     //right col pyr
     for (int i = 0; i < kHalfNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(180)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-22, 50, -26 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(180)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-22, 50, -26 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
     }
 
     //RL pyr
     //front row pyr
     for (int i = 0; i < kNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28 + i * 2, 50, 28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 2, min = -28
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28 + i * 2, 50, 28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 2, min = -28
     }
     //back row pyr
     for (int i = 0; i < kNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28 + i * 2, 50, 22), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28 + i * 2, 50, 22), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     //left col pyr
     for (int i = 0; i < kHalfNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28, 50, 24 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-28, 50, 24 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     //right col pyr
     for (int i = 0; i < kHalfNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(180)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-22, 50, 24 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(180)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(-22, 50, 24 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
     }
 
     //FR pyr
     //front row pyr
     for (int i = 0; i < kNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22 + i * 2, 50, -28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 2, min = -28
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22 + i * 2, 50, -28), XMMatrixScaling(1, 1, 1), index_cache++); //step = 2, min = -28
     }
     //back row pyr
     for (int i = 0; i < kNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22 + i * 2, 50, -22), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22 + i * 2, 50, -22), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     //left col pyr
     for (int i = 0; i < kHalfNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22, 50, -26 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22, 50, -26 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     //right col pyr
     for (int i = 0; i < kHalfNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(180)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(28, 50, -26 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(180)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(28, 50, -26 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
     }
-    
+
     //RR pyr
     //front row pyr
     for (int i = 0; i < kNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22 + i * 2, 50, 22), XMMatrixScaling(1, 1, 1), index_cache++); //step = 2, min = -28
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(-90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22 + i * 2, 50, 22), XMMatrixScaling(1, 1, 1), index_cache++); //step = 2, min = -28
     }
     //back row pyr
     for (int i = 0; i < kNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22 + i * 2, 50, 28), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(90)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22 + i * 2, 50, 28), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     //left col pyr
     for (int i = 0; i < kHalfNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22, 50, 24 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(22, 50, 24 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     //right col pyr
     for (int i = 0; i < kHalfNumPyramids; ++i) {
-        BuildOneRenderItem("pyramid", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(180)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(28, 50, 24 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("pyramid", "pyramidGeo", "cutPyr0", XMMatrixRotationY(XMConvertToRadians(180)), XMMatrixScaling(2.4f, 2.4f, 2.4f), XMMatrixTranslation(28, 50, 24 + i * 2), XMMatrixScaling(1, 1, 1), index_cache++);
     }
 
     const int kNumDiamonds = 2;
     // front charms
     for (int i = 0; i < kNumDiamonds; ++i) {
-        BuildOneRenderItem("charm", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(-25 + i * 50, 34, -29), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("charm", "charmGeo", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(-25 + i * 50, 34, -29), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     // back charms
     for (int i = 0; i < kNumDiamonds; ++i) {
-        BuildOneRenderItem("charm", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(-25 + i * 50, 34, 29), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("charm", "charmGeo", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(-25 + i * 50, 34, 29), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     // left charms
     for (int i = 0; i < kNumDiamonds; ++i) {
-        BuildOneRenderItem("charm", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(29, 34, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("charm", "charmGeo", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(29, 34, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     // right charms
     for (int i = 0; i < kNumDiamonds; ++i) {
-        BuildOneRenderItem("charm", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(-29, 34, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("charm", "charmGeo", "diamond0", XMMatrixRotationRollPitchYaw(XMConvertToRadians(0), XMConvertToRadians(45), XMConvertToRadians(0)), XMMatrixScaling(3, 8, 3), XMMatrixTranslation(-29, 34, -25 + i * 50), XMMatrixScaling(1, 1, 1), index_cache++);
     }
 
     // gates
-    BuildOneRenderItem("gate", "stone0", XMMatrixScaling(16, 24, 5), XMMatrixTranslation(0.0f, 11, -25), XMMatrixScaling(1, 1, 1), index_cache++);
-    BuildOneRenderItem("gate", "stone0", XMMatrixScaling(10, 20, 5), XMMatrixTranslation(0.0f, 11, -12.7f), XMMatrixScaling(1, 1, 1), index_cache++);
-    
+    BuildOneRenderItem("gate", "gateGeo", "stone0", XMMatrixScaling(16, 24, 5), XMMatrixTranslation(0.0f, 11, -25), XMMatrixScaling(1, 1, 1), index_cache++);
+    BuildOneRenderItem("gate", "gateGeo", "stone0", XMMatrixScaling(10, 20, 5), XMMatrixTranslation(0.0f, 11, -12.7f), XMMatrixScaling(1, 1, 1), index_cache++);
+
     //INNER
     // inner building
-    BuildOneRenderItem("box", "inner0", XMMatrixScaling(30, 40, 30), XMMatrixTranslation(0, 20, 0), XMMatrixScaling(1, 1, 1), index_cache++);
-    
+    BuildOneRenderItem("box", "boxGeo", "inner0", XMMatrixScaling(30, 40, 30), XMMatrixTranslation(0, 20, 0), XMMatrixScaling(1, 1, 1), index_cache++);
+
     // diamond
-    BuildOneRenderItem("diamond", "diamond0", XMMatrixScaling(3, 10, 3), XMMatrixTranslation(0.0f, 52, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
-    
+    BuildOneRenderItem("diamond", "diamondGeo", "diamond0", XMMatrixScaling(3, 10, 3), XMMatrixTranslation(0.0f, 52, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
+
     // torus
-    BuildOneRenderItem("torus", "brown0", XMMatrixScaling(4, 3, 4), XMMatrixTranslation(0.0f, 40, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
+    BuildOneRenderItem("torus", "torusGeo", "brown0", XMMatrixScaling(4, 3, 4), XMMatrixTranslation(0.0f, 40, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
 
     //rolo
-    BuildOneRenderItem("rolo", "red0", XMMatrixScaling(8, 6, 8), XMMatrixTranslation(0, 44, 0), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
+    BuildOneRenderItem("rolo", "roloGeo", "red0", XMMatrixScaling(8, 6, 8), XMMatrixTranslation(0, 44, 0), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -20
 
     for (int i = 0; i < 2; ++i)
     {
         // left cylinders
-        BuildOneRenderItem("cylinder", "cylinder0", XMMatrixScaling(2, 28, 2), XMMatrixTranslation(-15, 27, -15 + i * 30), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("cylinder", "cylinderGeo", "cylinder0", XMMatrixScaling(2, 28, 2), XMMatrixTranslation(-15, 27, -15 + i * 30), XMMatrixScaling(1, 1, 1), index_cache++);
         // left cones
-        BuildOneRenderItem("cone", "cone0", XMMatrixScaling(4, 7, 4), XMMatrixTranslation(-15, 60, -15 + i * 30), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("cone", "coneGeo", "cone0", XMMatrixScaling(4, 7, 4), XMMatrixTranslation(-15, 60, -15 + i * 30), XMMatrixScaling(1, 1, 1), index_cache++);
         // right cylinders
-        BuildOneRenderItem("cylinder", "cylinder0", XMMatrixScaling(2, 28, 2), XMMatrixTranslation(15, 27, -15 + i * 30), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("cylinder", "cylinderGeo", "cylinder0", XMMatrixScaling(2, 28, 2), XMMatrixTranslation(15, 27, -15 + i * 30), XMMatrixScaling(1, 1, 1), index_cache++);
         // right cones
-        BuildOneRenderItem("cone", "cone0", XMMatrixScaling(4, 7, 4), XMMatrixTranslation(15, 60, -15 + i * 30), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("cone", "coneGeo", "cone0", XMMatrixScaling(4, 7, 4), XMMatrixTranslation(15, 60, -15 + i * 30), XMMatrixScaling(1, 1, 1), index_cache++);
     }
-    
+
 
     // front prism loop
     for (int i = 0; i < 7; ++i)
     {
-        BuildOneRenderItem("prism", "red0", XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-12 + i * 4, 41, -14), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -12
+        BuildOneRenderItem("prism", "prismGeo", "red0", XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-12 + i * 4, 41, -14), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -12
     }
     // back prism loop
     for (int i = 0; i < 7; ++i)
     {
-        BuildOneRenderItem("prism", "red0", XMMatrixRotationY(XMConvertToRadians(180.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-12 + i * 4, 41, 14), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -12
+        BuildOneRenderItem("prism", "prismGeo", "red0", XMMatrixRotationY(XMConvertToRadians(180.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-12 + i * 4, 41, 14), XMMatrixScaling(1, 1, 1), index_cache++); //step = 4, min = -12
     }
     // left prism loop
     for (int i = 0; i < 7; ++i)
     {
-        BuildOneRenderItem("prism", "red0", XMMatrixRotationY(XMConvertToRadians(90.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-14, 41, -12 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("prism", "prismGeo", "red0", XMMatrixRotationY(XMConvertToRadians(90.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(-14, 41, -12 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++);
     }
     // right prism loop
     for (int i = 0; i < 7; ++i)
     {
-        BuildOneRenderItem("prism", "red0", XMMatrixRotationY(XMConvertToRadians(-90.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(14, 41, -12 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++);
+        BuildOneRenderItem("prism", "prismGeo", "red0", XMMatrixRotationY(XMConvertToRadians(-90.0f)), XMMatrixScaling(2, 2, 2), XMMatrixTranslation(14, 41, -12 + i * 4), XMMatrixScaling(1, 1, 1), index_cache++);
     }
 
-<<<<<<< HEAD
     auto treeSpritesRitem = std::make_unique<RenderItem>();
     treeSpritesRitem->World = MathHelper::Identity4x4();
     treeSpritesRitem->ObjCBIndex = index_cache;
@@ -2035,26 +2338,23 @@ void ShapesApp::BuildRenderItems()
     mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites].push_back(treeSpritesRitem.get());
     mAllRitems.push_back(std::move(treeSpritesRitem));
 
-	//// All the render items are opaque.
-	//for(auto& e : mAllRitems)
-	//	mOpaqueRitems.push_back(e.get());
+    //// All the render items are opaque.
+    //for(auto& e : mAllRitems)
+    //	mOpaqueRitems.push_back(e.get());
 
     ::OutputDebugStringA(">>> BuildRenderItems DONE!\n");
-=======
-	// All the render items are opaque.
-	for(auto& e : mAllRitems)
-		mOpaqueRitems.push_back(e.get());
->>>>>>> e0442d4790b886191b760771b04caeee37fade74
 }
 
 
 //The DrawRenderItems method is invoked in the main Draw call:
 void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
+    ::OutputDebugStringA(">>> DrawRenderItems started...\n");
+
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
     UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
 
-	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+    auto objectCB = mCurrFrameResource->ObjectCB->Resource();
     auto matCB = mCurrFrameResource->MaterialCB->Resource();
 
     // For each render item...
@@ -2078,8 +2378,9 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
-}
 
+    ::OutputDebugStringA(">>> DrawRenderItems DONE!\n");
+}
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> ShapesApp::GetStaticSamplers()
 {
@@ -2138,3 +2439,21 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> ShapesApp::GetStaticSamplers()
         anisotropicWrap, anisotropicClamp };
 }
 
+float ShapesApp::GetHillsHeight(float x, float z)const
+{
+    return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
+}
+
+XMFLOAT3 ShapesApp::GetHillsNormal(float x, float z)const
+{
+    // n = (-df/dx, 1, -df/dz)
+    XMFLOAT3 n(
+        -0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z),
+        1.0f,
+        -0.3f * sinf(0.1f * x) + 0.03f * x * sinf(0.1f * z));
+
+    XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
+    XMStoreFloat3(&n, unitNormal);
+
+    return n;
+}
