@@ -553,6 +553,23 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
     mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
     mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
+    // 0-2 direction, 3-10 pointlight , 11-16 spot light
+    mMainPassCB.Lights[3].Position = { -25.0f, 50.0f, -25.0f };
+    mMainPassCB.Lights[3].Strength = { 1.0f, 0.2f, 0.2f };
+    mMainPassCB.Lights[4].Position = { 25.0f, 50.0f, -25.0f };
+    mMainPassCB.Lights[4].Strength = { 1.0f, 0.2f, 0.2f };
+    mMainPassCB.Lights[5].Position = { -25.0f, 50.0f, 25.0f };
+    mMainPassCB.Lights[5].Strength = { 1.0f, 0.2f, 0.2f };
+    mMainPassCB.Lights[6].Position = { 25.0f, 50.0f, 25.0f };
+    mMainPassCB.Lights[6].Strength = { 1.0f, 0.2f, 0.2f };
+    mMainPassCB.Lights[7].Position = { -15.0f, 68.0f, -15.0f };
+    mMainPassCB.Lights[7].Strength = { 0.2f, 0.2f, 0.9f };
+    mMainPassCB.Lights[8].Position = { 15.0f, 68.0f, -15.0f };
+    mMainPassCB.Lights[8].Strength = { 0.2f, 0.2f, 0.9f };
+    mMainPassCB.Lights[9].Position = { -15.0f, 68.0f, 15.0f };
+    mMainPassCB.Lights[9].Strength = { 0.2f, 0.2f, 0.9f };
+    mMainPassCB.Lights[10].Position = { 15.0f, 68.0f, 15.0f };
+    mMainPassCB.Lights[10].Strength = { 0.2f, 0.2f, 0.9f };
 
     auto currPassCB = mCurrFrameResource->PassCB.get();
     currPassCB->CopyData(0, mMainPassCB);
@@ -578,7 +595,7 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
 
     auto tileTex = std::make_unique<Texture>();
     tileTex->Name = "tileTex";
-    tileTex->Filename = L"../../Textures/tile.dds";
+    tileTex->Filename = L"../../Textures/groundTex.dds";
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), tileTex->Filename.c_str(),
         tileTex->Resource, tileTex->UploadHeap));
@@ -1035,7 +1052,7 @@ void ShapesApp::BuildShadersAndInputLayout()
 void ShapesApp::BuildLandGeometry()
 {
     GeometryGenerator geoGen;
-    GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
+    GeometryGenerator::MeshData grid = geoGen.CreateGrid(260.0f, 260.0f, 50, 50);
 
     //
     // Extract the vertex elements we are interested and apply the height function to
@@ -2111,7 +2128,7 @@ void ShapesApp::BuildRenderItems()
     gridRitem->World = MathHelper::Identity4x4();
     XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
     gridRitem->ObjCBIndex = index_cache;
-    gridRitem->Mat = mMaterials["bricks0"].get();
+    gridRitem->Mat = mMaterials["tile0"].get();
     gridRitem->Geo = mGeometries["landGeo"].get();
     gridRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
@@ -2123,7 +2140,7 @@ void ShapesApp::BuildRenderItems()
     mAllRitems.push_back(std::move(gridRitem));
 
     // grid
-    BuildOneRenderItem("grid", "gridGeo", "tile0", XMMatrixScaling(2, 2, 2), XMMatrixTranslation(0.0f, 0.0f, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
+    BuildOneRenderItem("grid", "gridGeo", "tile0", XMMatrixScaling(1, 1, 1), XMMatrixTranslation(0.0f, 0.0f, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
 
     // OUTTER
     // front wall 
@@ -2441,7 +2458,7 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> ShapesApp::GetStaticSamplers()
 
 float ShapesApp::GetHillsHeight(float x, float z)const
 {
-    return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
+    return 0.1f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
 }
 
 XMFLOAT3 ShapesApp::GetHillsNormal(float x, float z)const
