@@ -791,6 +791,13 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), cloudArrayTex->Filename.c_str(),
         cloudArrayTex->Resource, cloudArrayTex->UploadHeap));
+    
+    auto wyvernArrayTex = std::make_unique<Texture>();
+    wyvernArrayTex->Name = "wyvernArrayTex";
+    wyvernArrayTex->Filename = L"../../Textures/rathalos.dds";
+    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+        mCommandList.Get(), wyvernArrayTex->Filename.c_str(),
+        wyvernArrayTex->Resource, wyvernArrayTex->UploadHeap));
 
 
 
@@ -812,6 +819,7 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
     mTextures[gateTex->Name] = std::move(gateTex);
     mTextures[treeArrayTex->Name] = std::move(treeArrayTex);
     mTextures[cloudArrayTex->Name] = std::move(cloudArrayTex);
+    mTextures[wyvernArrayTex->Name] = std::move(wyvernArrayTex);
 
 
     ::OutputDebugStringA(">>> LoadTextures DONE!\n");
@@ -946,7 +954,7 @@ void ShapesApp::BuildDescriptorHeaps()
     // Create the SRV heap.
     //
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 18; //EDIT NUM OF DESCRIPTORS
+    srvHeapDesc.NumDescriptors = 19; //EDIT NUM OF DESCRIPTORS
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -973,6 +981,7 @@ void ShapesApp::BuildDescriptorHeaps()
     auto waterTex = mTextures["waterTex"]->Resource;
     auto treeArrayTex = mTextures["treeArrayTex"]->Resource;
     auto cloudArrayTex = mTextures["cloudArrayTex"]->Resource;
+    auto wyvernArrayTex = mTextures["wyvernArrayTex"]->Resource;
     auto gateTex = mTextures["gateTex"]->Resource;
 
 
@@ -1079,7 +1088,6 @@ void ShapesApp::BuildDescriptorHeaps()
     
     // next descriptor
     hDescriptor.Offset(1, mCbvSrvDescriptorSize);
-
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
     srvDesc.Format = cloudArrayTex->GetDesc().Format;
     srvDesc.Texture2DArray.MostDetailedMip = 0;
@@ -1087,6 +1095,16 @@ void ShapesApp::BuildDescriptorHeaps()
     srvDesc.Texture2DArray.FirstArraySlice = 0;
     srvDesc.Texture2DArray.ArraySize = cloudArrayTex->GetDesc().DepthOrArraySize;
     md3dDevice->CreateShaderResourceView(cloudArrayTex.Get(), &srvDesc, hDescriptor);
+    
+    // next descriptor
+    hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+    srvDesc.Format = wyvernArrayTex->GetDesc().Format;
+    srvDesc.Texture2DArray.MostDetailedMip = 0;
+    srvDesc.Texture2DArray.MipLevels = -1;
+    srvDesc.Texture2DArray.FirstArraySlice = 0;
+    srvDesc.Texture2DArray.ArraySize = wyvernArrayTex->GetDesc().DepthOrArraySize;
+    md3dDevice->CreateShaderResourceView(wyvernArrayTex.Get(), &srvDesc, hDescriptor);
 
     ::OutputDebugStringA(">>> BuildDescriptorHeaps DONE!\n");
 }
@@ -1436,9 +1454,17 @@ void ShapesApp::BuildCloudSpritesGeometry()
     std::array<TreeSpriteVertex, 16> vertices;
     for (UINT i = 0; i < treeCount; ++i)
     {
-        float x = MathHelper::RandF(-100.0f, 100.0f);
-        float z = MathHelper::RandF(-100.0f, 100.0f);
-        float y = 120.0f;
+        
+        float x = MathHelper::RandF(-150.0f, 150.0f);
+        float z = 0;
+        if (i < treeCount * 0.5) {
+            z = MathHelper::RandF(50.0f, 150.0f);
+        }
+        else {
+            z = MathHelper::RandF(-50.0f, -150.0f);
+        }
+
+        float y = 90.0f;
 
 
         vertices[i].Pos = XMFLOAT3(x, y, z);
@@ -1493,30 +1519,24 @@ void ShapesApp::BuildWyvernSpritesGeometry()
         XMFLOAT2 Size;
     };
 
-    static const int treeCount = 16;
-    std::array<TreeSpriteVertex, 16> vertices;
+    static const int treeCount = 1;
+    std::array<TreeSpriteVertex, 1> vertices;
     for (UINT i = 0; i < treeCount; ++i)
     {
-        float x = MathHelper::RandF(-100.0f, 100.0f);
-        float z = MathHelper::RandF(-100.0f, 100.0f);
-        float y = 120.0f;
-
-
-        vertices[i].Pos = XMFLOAT3(x, y, z);
-        vertices[i].Size = XMFLOAT2(48, 20);
+        vertices[i].Pos = XMFLOAT3(0, 75, 150);
+        vertices[i].Size = XMFLOAT2(100, 100);
     }
 
-    std::array<std::uint16_t, 16> indices =
+    std::array<std::uint16_t, 1> indices =
     {
-        0, 1, 2, 3, 4, 5, 6, 7,
-        8, 9, 10, 11, 12, 13, 14, 15
+        0
     };
 
     const UINT vbByteSize = (UINT)vertices.size() * sizeof(TreeSpriteVertex);
     const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
     auto geo = std::make_unique<MeshGeometry>();
-    geo->Name = "cloudSpritesGeo";
+    geo->Name = "wyvernSpritesGeo";
 
     ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
     CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -1532,7 +1552,7 @@ void ShapesApp::BuildWyvernSpritesGeometry()
 
     geo->VertexByteStride = sizeof(TreeSpriteVertex);
     geo->VertexBufferByteSize = vbByteSize;
-    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexFormat = DXGI_FORMAT_R8_UINT;
     geo->IndexBufferByteSize = ibByteSize;
 
     SubmeshGeometry submesh;
@@ -1542,7 +1562,7 @@ void ShapesApp::BuildWyvernSpritesGeometry()
 
     geo->DrawArgs["points"] = submesh;
 
-    mGeometries["cloudSpritesGeo"] = std::move(geo);
+    mGeometries["wyvernSpritesGeo"] = std::move(geo);
 }
 
 void ShapesApp::BuildPSOs()
@@ -1836,6 +1856,15 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     cloudSprites->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
     cloudSprites->Roughness = 0.125f;
     mat_idx++;
+    
+    auto wyvernSprites = std::make_unique<Material>();
+    wyvernSprites->Name = "wyvernSprites";
+    wyvernSprites->MatCBIndex = mat_idx;
+    wyvernSprites->DiffuseSrvHeapIndex = mat_idx;
+    wyvernSprites->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    wyvernSprites->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
+    wyvernSprites->Roughness = 0.125f;
+    mat_idx++;
 
     mMaterials["bricks0"] = std::move(bricks0);
     mMaterials["stone0"] = std::move(stone0);
@@ -1855,6 +1884,7 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     mMaterials["gate0"] = std::move(gate0);
     mMaterials["treeSprites"] = std::move(treeSprites);
     mMaterials["cloudSprites"] = std::move(cloudSprites);
+    mMaterials["wyvernSprites"] = std::move(wyvernSprites);
 
     ::OutputDebugStringA(">>> BuildMaterials DONE!\n");
 }
@@ -2282,6 +2312,21 @@ void ShapesApp::BuildRenderItems()
 
     mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites].push_back(cloudSpritesRitem.get());
     mAllRitems.push_back(std::move(cloudSpritesRitem));
+    
+    // WYVERN
+    auto wyvernSpritesRitem = std::make_unique<RenderItem>();
+    wyvernSpritesRitem->World = MathHelper::Identity4x4();
+    wyvernSpritesRitem->ObjCBIndex = index_cache;
+    wyvernSpritesRitem->Mat = mMaterials["wyvernSprites"].get();
+    wyvernSpritesRitem->Geo = mGeometries["wyvernSpritesGeo"].get();
+    wyvernSpritesRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+    wyvernSpritesRitem->IndexCount = wyvernSpritesRitem->Geo->DrawArgs["points"].IndexCount;
+    wyvernSpritesRitem->StartIndexLocation = wyvernSpritesRitem->Geo->DrawArgs["points"].StartIndexLocation;
+    wyvernSpritesRitem->BaseVertexLocation = wyvernSpritesRitem->Geo->DrawArgs["points"].BaseVertexLocation;
+    index_cache++;
+
+    mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites].push_back(wyvernSpritesRitem.get());
+    mAllRitems.push_back(std::move(wyvernSpritesRitem));
 
     //// All the render items are opaque.
     //for(auto& e : mAllRitems)
