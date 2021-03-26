@@ -11,6 +11,9 @@
 #include "../../Common/GeometryGenerator.h"
 #include "FrameResource.h"
 #include "Waves.h"
+#include <stdlib.h>     /* srand, rand */
+#include <time.h>       /* time */
+
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -113,6 +116,8 @@ private:
     void BuildOneShapeGeometry(std::string shape_type, std::string shape_name, float param_a, float param_b, float param_c, float param_d = -999, float param_e = -999);
     void BuildShapeGeometry();
     void BuildTreeSpritesGeometry();
+    void BuildCloudSpritesGeometry();
+    void BuildWyvernSpritesGeometry();
     void BuildPSOs();
     void BuildFrameResources();
     void BuildMaterials();
@@ -219,6 +224,8 @@ bool ShapesApp::Initialize()
 {
     ::OutputDebugStringA(">>> Init started...\n");
 
+    srand(time(NULL));
+
     if (!D3DApp::Initialize())
         return false;
 
@@ -239,6 +246,8 @@ bool ShapesApp::Initialize()
     BuildWavesGeometry();
     BuildShapeGeometry();
     BuildTreeSpritesGeometry();
+    BuildCloudSpritesGeometry();
+    BuildWyvernSpritesGeometry();
     BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
@@ -269,7 +278,6 @@ void ShapesApp::OnResize()
 
 void ShapesApp::Update(const GameTimer& gt)
 {
-    ::OutputDebugStringA(">>> Update started...\n");
     OnKeyboardInput(gt);
     UpdateCamera(gt);
 
@@ -292,12 +300,10 @@ void ShapesApp::Update(const GameTimer& gt)
     UpdateMaterialCBs(gt);
     UpdateMainPassCB(gt);
     UpdateWaves(gt);
-    ::OutputDebugStringA(">>> Update DONE!\n");
 }
 
 void ShapesApp::Draw(const GameTimer& gt)
 {
-    ::OutputDebugStringA(">>> Draw started...\n");
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
     // Reuse the memory associated with command recording.
@@ -381,8 +387,6 @@ void ShapesApp::Draw(const GameTimer& gt)
     // Because we are on the GPU timeline, the new fence point won't be 
     // set until the GPU finishes processing all the commands prior to this Signal().
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
-
-    ::OutputDebugStringA(">>> Draw DONE!\n");
 }
 
 void ShapesApp::OnMouseDown(WPARAM btnState, int x, int y)
@@ -614,6 +618,46 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
     currPassCB->CopyData(0, mMainPassCB);
 }
 
+
+void ShapesApp::UpdateWaves(const GameTimer& gt)
+{
+    // Every quarter second, generate a random wave.
+    static float t_base = 0.0f;
+    if ((mTimer.TotalTime() - t_base) >= 0.25f)
+    {
+        t_base += 0.25f;
+
+        int i = MathHelper::Rand(4, mWaves->RowCount() - 5);
+        int j = MathHelper::Rand(4, mWaves->ColumnCount() - 5);
+
+        float r = MathHelper::RandF(0.1f, 1.0f); // EDIT WAVE INTENSITY
+
+        mWaves->Disturb(i, j, r);
+    }
+
+    // Update the wave simulation.
+    mWaves->Update(gt.DeltaTime());
+
+    // Update the wave vertex buffer with the new solution.
+    auto currWavesVB = mCurrFrameResource->WavesVB.get();
+    for (int i = 0; i < mWaves->VertexCount(); ++i)
+    {
+        Vertex v;
+        v.Pos = mWaves->Position(i);
+        v.Normal = mWaves->Normal(i);
+
+        // Derive tex-coords from position by 
+        // mapping [-w/2,w/2] --> [0,1]
+        v.TexC.x = 0.5f + v.Pos.x / mWaves->Width();
+        v.TexC.y = 0.5f - v.Pos.z / mWaves->Depth();
+
+        currWavesVB->CopyData(i, v);
+    }
+
+    // Set the dynamic VB of the wave renderitem to the current frame VB.
+    mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
+}
+
 void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
 {
     ::OutputDebugStringA(">>> LoadTextures started...\n");
@@ -722,7 +766,7 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
 
     auto waterTex = std::make_unique<Texture>();
     waterTex->Name = "waterTex";
-    waterTex->Filename = L"../../Textures/water1.dds";
+    waterTex->Filename = L"../../Textures/water3.dds";
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), waterTex->Filename.c_str(),
         waterTex->Resource, waterTex->UploadHeap));
@@ -740,6 +784,13 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
         mCommandList.Get(), treeArrayTex->Filename.c_str(),
         treeArrayTex->Resource, treeArrayTex->UploadHeap));
+    
+    auto cloudArrayTex = std::make_unique<Texture>();
+    cloudArrayTex->Name = "cloudArrayTex";
+    cloudArrayTex->Filename = L"../../Textures/cloud0.dds";
+    ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+        mCommandList.Get(), cloudArrayTex->Filename.c_str(),
+        cloudArrayTex->Resource, cloudArrayTex->UploadHeap));
 
 
 
@@ -760,50 +811,13 @@ void ShapesApp::LoadTextures() //EDIT TEXTURES HERE
     mTextures[waterTex->Name] = std::move(waterTex);
     mTextures[gateTex->Name] = std::move(gateTex);
     mTextures[treeArrayTex->Name] = std::move(treeArrayTex);
+    mTextures[cloudArrayTex->Name] = std::move(cloudArrayTex);
 
 
     ::OutputDebugStringA(">>> LoadTextures DONE!\n");
 }
 
 
-void ShapesApp::UpdateWaves(const GameTimer& gt)
-{
-    // Every quarter second, generate a random wave.
-    static float t_base = 0.0f;
-    if ((mTimer.TotalTime() - t_base) >= 0.25f)
-    {
-        t_base += 0.25f;
-
-        int i = MathHelper::Rand(4, mWaves->RowCount() - 5);
-        int j = MathHelper::Rand(4, mWaves->ColumnCount() - 5);
-
-        float r = MathHelper::RandF(0.2f, 0.5f);
-
-        mWaves->Disturb(i, j, r);
-    }
-
-    // Update the wave simulation.
-    mWaves->Update(gt.DeltaTime());
-
-    // Update the wave vertex buffer with the new solution.
-    auto currWavesVB = mCurrFrameResource->WavesVB.get();
-    for (int i = 0; i < mWaves->VertexCount(); ++i)
-    {
-        Vertex v;
-        v.Pos = mWaves->Position(i);
-        v.Normal = mWaves->Normal(i);
-
-        // Derive tex-coords from position by 
-        // mapping [-w/2,w/2] --> [0,1]
-        v.TexC.x = 0.5f + v.Pos.x / mWaves->Width();
-        v.TexC.y = 0.5f - v.Pos.z / mWaves->Depth();
-
-        currWavesVB->CopyData(i, v);
-    }
-
-    // Set the dynamic VB of the wave renderitem to the current frame VB.
-    mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
-}
 
 //assuming we have n renter items, we can populate the CBV heap with the following code where descriptors 0 to n-
 //1 contain the object CBVs for the 0th frame resource, descriptors n to 2n−1 contains the
@@ -958,6 +972,7 @@ void ShapesApp::BuildDescriptorHeaps()
     auto brownTex = mTextures["brownTex"]->Resource;
     auto waterTex = mTextures["waterTex"]->Resource;
     auto treeArrayTex = mTextures["treeArrayTex"]->Resource;
+    auto cloudArrayTex = mTextures["cloudArrayTex"]->Resource;
     auto gateTex = mTextures["gateTex"]->Resource;
 
 
@@ -1061,6 +1076,17 @@ void ShapesApp::BuildDescriptorHeaps()
     srvDesc.Texture2DArray.FirstArraySlice = 0;
     srvDesc.Texture2DArray.ArraySize = treeArrayTex->GetDesc().DepthOrArraySize;
     md3dDevice->CreateShaderResourceView(treeArrayTex.Get(), &srvDesc, hDescriptor);
+    
+    // next descriptor
+    hDescriptor.Offset(1, mCbvSrvDescriptorSize);
+
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+    srvDesc.Format = cloudArrayTex->GetDesc().Format;
+    srvDesc.Texture2DArray.MostDetailedMip = 0;
+    srvDesc.Texture2DArray.MipLevels = -1;
+    srvDesc.Texture2DArray.FirstArraySlice = 0;
+    srvDesc.Texture2DArray.ArraySize = cloudArrayTex->GetDesc().DepthOrArraySize;
+    md3dDevice->CreateShaderResourceView(cloudArrayTex.Get(), &srvDesc, hDescriptor);
 
     ::OutputDebugStringA(">>> BuildDescriptorHeaps DONE!\n");
 }
@@ -1109,7 +1135,7 @@ void ShapesApp::BuildShadersAndInputLayout()
 void ShapesApp::BuildLandGeometry()
 {
     GeometryGenerator geoGen;
-    GeometryGenerator::MeshData grid = geoGen.CreateGrid(260.0f, 260.0f, 50, 50);
+    GeometryGenerator::MeshData grid = geoGen.CreateGrid(300.0f, 300.0f, 50, 50);
 
     //
     // Extract the vertex elements we are interested and apply the height function to
@@ -1331,359 +1357,6 @@ void ShapesApp::BuildShapeGeometry()
     BuildOneShapeGeometry("prism", "prismGeo", 1.0f, 1.0f, 1);
     BuildOneShapeGeometry("torus", "torusGeo", 2.0f, 0.5f, 20, 20);
 
-    // LEGACY CODES
-    /*
-    GeometryGenerator geoGen;
-    GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3); // ADD HERE
-    GeometryGenerator::MeshData outterWall = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-    GeometryGenerator::MeshData tower = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-    GeometryGenerator::MeshData gate = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-    GeometryGenerator::MeshData grid = geoGen.CreateGrid(70.0f, 70.0f, 60, 40);
-    GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
-    GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(1.0f, 1.0f, 2.0f, 20, 20);
-    GeometryGenerator::MeshData rolo = geoGen.CreateCylinder(1.0f, 0.5f, 1.0f, 20, 20);
-    GeometryGenerator::MeshData wedge = geoGen.CreateWedge(1.0, 1.0f, 1.0, 3); // MARY 1
-    GeometryGenerator::MeshData cone = geoGen.CreateCone(1.0f, 2.0f, 20, 20); // MARY 1-2
-    GeometryGenerator::MeshData pyramid = geoGen.CreatePyramid(1.0, 1.0f, 20); // MARY 1-3
-    GeometryGenerator::MeshData truncatedPyramid = geoGen.CreateTruncatedPyramid(1.0, 1.0f, 0.5f, 1); // MARY 1-3
-    GeometryGenerator::MeshData diamond = geoGen.CreateDiamond(1.0f, 1.0f, 1.0f, 1);
-    GeometryGenerator::MeshData charm = geoGen.CreateDiamond(1.0f, 1.0f, 1.0f, 1);
-    GeometryGenerator::MeshData prism = geoGen.CreateTriangularPrism(1.0f, 1.0f, 1);
-    GeometryGenerator::MeshData torus = geoGen.CreateTorus(2.0f, 0.5f, 20,20);
-
-    //
-    // We are concatenating all the geometry into one big vertex/index buffer.  So
-    // define the regions in the buffer each submesh covers.
-    //
-
-    // Cache the vertex offsets to each object in the concatenated vertex buffer.
-    UINT boxVertexOffset = 0; // ADD HERE
-    UINT outterWallVertexOffset = boxVertexOffset + (UINT)box.Vertices.size();
-    UINT towerVertexOffset = outterWallVertexOffset + (UINT)outterWall.Vertices.size();
-    UINT gateVertexOffset = towerVertexOffset + (UINT)tower.Vertices.size();
-    UINT gridVertexOffset = gateVertexOffset + (UINT)gate.Vertices.size();
-    UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
-    UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
-    UINT roloVertexOffset = cylinderVertexOffset + (UINT)cylinder.Vertices.size(); // MARY 2
-    UINT wedgeVertexOffset = roloVertexOffset + (UINT)rolo.Vertices.size(); // MARY 2
-    UINT coneVertexOffset = wedgeVertexOffset + (UINT)wedge.Vertices.size(); // MARY 2-2
-    UINT pyramidVertexOffset = coneVertexOffset + (UINT)cone.Vertices.size(); // MARY 2-3
-    UINT truncatedPyramidVertexOffset = pyramidVertexOffset + (UINT)pyramid.Vertices.size();
-    UINT diamondVertexOffset = truncatedPyramidVertexOffset + (UINT)truncatedPyramid.Vertices.size();
-    UINT charmVertexOffset = diamondVertexOffset + (UINT)diamond.Vertices.size();
-    UINT prismVertexOffset = charmVertexOffset + (UINT)charm.Vertices.size();
-    UINT torusVertexOffset = prismVertexOffset + (UINT)prism.Vertices.size();
-
-
-    // Cache the starting index for each object in the concatenated index buffer.
-    UINT boxIndexOffset = 0; // ADD HERE
-    UINT outterWallIndexOffset = boxIndexOffset + (UINT)box.Indices32.size();
-    UINT towerIndexOffset = outterWallIndexOffset + (UINT)outterWall.Indices32.size();
-    UINT gateIndexOffset = towerIndexOffset + (UINT)tower.Indices32.size();
-    UINT gridIndexOffset = gateIndexOffset + (UINT)gate.Indices32.size();
-    UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
-    UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
-    UINT roloIndexOffset = cylinderIndexOffset + (UINT)cylinder.Indices32.size(); // MARY 3
-    UINT wedgeIndexOffset = roloIndexOffset + (UINT)rolo.Indices32.size(); // MARY 3
-    UINT coneIndexOffset = wedgeIndexOffset + (UINT)wedge.Indices32.size(); // MARY 3-2
-    UINT pyramidIndexOffset = coneIndexOffset + (UINT)cone.Indices32.size(); // MARY 3-3
-    UINT truncatedPyramidIndexOffset = pyramidIndexOffset + (UINT)pyramid.Indices32.size();
-    UINT diamondIndexOffset = truncatedPyramidIndexOffset + (UINT)truncatedPyramid.Indices32.size();
-    UINT charmIndexOffset = diamondIndexOffset + (UINT)diamond.Indices32.size();
-    UINT prismIndexOffset = charmIndexOffset + (UINT)charm.Indices32.size();
-    UINT torusIndexOffset = prismIndexOffset + (UINT)prism.Indices32.size();
-
-
-
-    // Define the SubmeshGeometry that cover different
-    // regions of the vertex/index buffers.
-
-    SubmeshGeometry boxSubmesh; // ADD HERE
-    boxSubmesh.IndexCount = (UINT)box.Indices32.size();
-    boxSubmesh.StartIndexLocation = boxIndexOffset;
-    boxSubmesh.BaseVertexLocation = boxVertexOffset;
-
-    SubmeshGeometry outterWallSubmesh;
-    outterWallSubmesh.IndexCount = (UINT)outterWall.Indices32.size();
-    outterWallSubmesh.StartIndexLocation = outterWallIndexOffset;
-    outterWallSubmesh.BaseVertexLocation = outterWallVertexOffset;
-
-    SubmeshGeometry towerWallSubmesh;
-    towerWallSubmesh.IndexCount = (UINT)tower.Indices32.size();
-    towerWallSubmesh.StartIndexLocation = towerIndexOffset;
-    towerWallSubmesh.BaseVertexLocation = towerVertexOffset;
-
-    SubmeshGeometry gateWallSubmesh;
-    gateWallSubmesh.IndexCount = (UINT)gate.Indices32.size();
-    gateWallSubmesh.StartIndexLocation = gateIndexOffset;
-    gateWallSubmesh.BaseVertexLocation = gateVertexOffset;
-
-    SubmeshGeometry gridSubmesh;
-    gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
-    gridSubmesh.StartIndexLocation = gridIndexOffset;
-    gridSubmesh.BaseVertexLocation = gridVertexOffset;
-
-    SubmeshGeometry sphereSubmesh;
-    sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
-    sphereSubmesh.StartIndexLocation = sphereIndexOffset;
-    sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
-
-    SubmeshGeometry cylinderSubmesh;
-    cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
-    cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
-    cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
-
-    SubmeshGeometry roloSubmesh;
-    roloSubmesh.IndexCount = (UINT)rolo.Indices32.size();
-    roloSubmesh.StartIndexLocation = roloIndexOffset;
-    roloSubmesh.BaseVertexLocation = roloVertexOffset;
-
-    // MARY 4
-    SubmeshGeometry wedgeSubmesh;
-    wedgeSubmesh.IndexCount = (UINT)wedge.Indices32.size();
-    wedgeSubmesh.StartIndexLocation = wedgeIndexOffset;
-    wedgeSubmesh.BaseVertexLocation = wedgeVertexOffset;
-
-    // MARY 4-2
-    SubmeshGeometry coneSubmesh;
-    coneSubmesh.IndexCount = (UINT)cone.Indices32.size();
-    coneSubmesh.StartIndexLocation = coneIndexOffset;
-    coneSubmesh.BaseVertexLocation = coneVertexOffset;
-
-    // MARY 4-3
-    SubmeshGeometry pyramidSubmesh;
-    pyramidSubmesh.IndexCount = (UINT)pyramid.Indices32.size();
-    pyramidSubmesh.StartIndexLocation = pyramidIndexOffset;
-    pyramidSubmesh.BaseVertexLocation = pyramidVertexOffset;
-
-    SubmeshGeometry truncatedPyramidSubmesh;
-    truncatedPyramidSubmesh.IndexCount = (UINT)truncatedPyramid.Indices32.size();
-    truncatedPyramidSubmesh.StartIndexLocation = truncatedPyramidIndexOffset;
-    truncatedPyramidSubmesh.BaseVertexLocation = truncatedPyramidVertexOffset;
-
-    SubmeshGeometry diamondSubmesh;
-    diamondSubmesh.IndexCount = (UINT)diamond.Indices32.size();
-    diamondSubmesh.StartIndexLocation = diamondIndexOffset;
-    diamondSubmesh.BaseVertexLocation = diamondVertexOffset;
-
-    SubmeshGeometry charmSubmesh;
-    charmSubmesh.IndexCount = (UINT)charm.Indices32.size();
-    charmSubmesh.StartIndexLocation = charmIndexOffset;
-    charmSubmesh.BaseVertexLocation = charmVertexOffset;
-
-    SubmeshGeometry prismSubmesh;
-    prismSubmesh.IndexCount = (UINT)prism.Indices32.size();
-    prismSubmesh.StartIndexLocation = prismIndexOffset;
-    prismSubmesh.BaseVertexLocation = prismVertexOffset;
-
-    SubmeshGeometry torusSubmesh;
-    torusSubmesh.IndexCount = (UINT)torus.Indices32.size();
-    torusSubmesh.StartIndexLocation = torusIndexOffset;
-    torusSubmesh.BaseVertexLocation = torusVertexOffset;
-
-    //
-    // Extract the vertex elements we are interested in and pack the
-    // vertices of all the meshes into one vertex buffer.
-    //
-
-    auto totalVertexCount =
-        box.Vertices.size() +
-        outterWall.Vertices.size() +
-        tower.Vertices.size() +
-        gate.Vertices.size() +
-        grid.Vertices.size() +
-        sphere.Vertices.size() +
-        cylinder.Vertices.size() +
-        rolo.Vertices.size() +
-        wedge.Vertices.size() + // MARY 5
-        cone.Vertices.size() + // MARY 5-2
-        pyramid.Vertices.size() + // MARY 5-3
-        truncatedPyramid.Vertices.size() +
-        diamond.Vertices.size() +
-        charm.Vertices.size() +
-        prism.Vertices.size() +
-        torus.Vertices.size();
-
-
-    std::vector<Vertex> vertices(totalVertexCount);
-
-    UINT k = 0;
-    for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) // ADD HERE
-    {
-        vertices[k].Pos = box.Vertices[i].Position;
-        vertices[k].Normal = box.Vertices[i].Normal;
-        vertices[k].TexC = box.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < outterWall.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = outterWall.Vertices[i].Position;
-        vertices[k].Normal = outterWall.Vertices[i].Normal;
-        vertices[k].TexC = outterWall.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < tower.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = tower.Vertices[i].Position;
-        vertices[k].Normal = tower.Vertices[i].Normal;
-        vertices[k].TexC = tower.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < gate.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = gate.Vertices[i].Position;
-        vertices[k].Normal = gate.Vertices[i].Normal;
-        vertices[k].TexC = gate.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = grid.Vertices[i].Position;
-        vertices[k].Normal = grid.Vertices[i].Normal;
-        vertices[k].TexC = grid.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = sphere.Vertices[i].Position;
-        vertices[k].Normal = sphere.Vertices[i].Normal;
-        vertices[k].TexC = sphere.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = cylinder.Vertices[i].Position;
-        vertices[k].Normal = cylinder.Vertices[i].Normal;
-        vertices[k].TexC = cylinder.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < rolo.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = rolo.Vertices[i].Position;
-        vertices[k].Normal = rolo.Vertices[i].Normal;
-        vertices[k].TexC = rolo.Vertices[i].TexC;
-    }
-
-    // MARY 6
-    for (size_t i = 0; i < wedge.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = wedge.Vertices[i].Position;
-        vertices[k].Normal = wedge.Vertices[i].Normal;
-        vertices[k].TexC = wedge.Vertices[i].TexC;
-    }
-    // MARY 6-2
-    for (size_t i = 0; i < cone.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = cone.Vertices[i].Position;
-        vertices[k].Normal = cone.Vertices[i].Normal;
-        vertices[k].TexC = cone.Vertices[i].TexC;
-    }
-    // MARY 6-3
-    for (size_t i = 0; i < pyramid.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = pyramid.Vertices[i].Position;
-        vertices[k].Normal = pyramid.Vertices[i].Normal;
-        vertices[k].TexC = pyramid.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < truncatedPyramid.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = truncatedPyramid.Vertices[i].Position;
-        vertices[k].Normal = truncatedPyramid.Vertices[i].Normal;
-        vertices[k].TexC = truncatedPyramid.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < diamond.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = diamond.Vertices[i].Position;
-        vertices[k].Normal = diamond.Vertices[i].Normal;
-        vertices[k].TexC = diamond.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < charm.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = charm.Vertices[i].Position;
-        vertices[k].Normal = charm.Vertices[i].Normal;
-        vertices[k].TexC = charm.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < prism.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = prism.Vertices[i].Position;
-        vertices[k].Normal = prism.Vertices[i].Normal;
-        vertices[k].TexC = prism.Vertices[i].TexC;
-    }
-
-    for (size_t i = 0; i < torus.Vertices.size(); ++i, ++k)
-    {
-        vertices[k].Pos = torus.Vertices[i].Position;
-        vertices[k].Normal = torus.Vertices[i].Normal;
-        vertices[k].TexC = torus.Vertices[i].TexC;
-    }
-    std::vector<std::uint16_t> indices;
-    indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16())); // ADD HERE
-    indices.insert(indices.end(), std::begin(outterWall.GetIndices16()), std::end(outterWall.GetIndices16()));
-    indices.insert(indices.end(), std::begin(tower.GetIndices16()), std::end(tower.GetIndices16()));
-    indices.insert(indices.end(), std::begin(gate.GetIndices16()), std::end(gate.GetIndices16()));
-    indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
-    indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
-    indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
-    indices.insert(indices.end(), std::begin(rolo.GetIndices16()), std::end(rolo.GetIndices16()));
-    indices.insert(indices.end(), std::begin(wedge.GetIndices16()), std::end(wedge.GetIndices16())); // MARY 7
-    indices.insert(indices.end(), std::begin(cone.GetIndices16()), std::end(cone.GetIndices16())); // MARY 7-2
-    indices.insert(indices.end(), std::begin(pyramid.GetIndices16()), std::end(pyramid.GetIndices16())); // MARY 7-3
-    indices.insert(indices.end(), std::begin(truncatedPyramid.GetIndices16()), std::end(truncatedPyramid.GetIndices16()));
-    indices.insert(indices.end(), std::begin(diamond.GetIndices16()), std::end(diamond.GetIndices16()));
-    indices.insert(indices.end(), std::begin(charm.GetIndices16()), std::end(charm.GetIndices16()));
-    indices.insert(indices.end(), std::begin(prism.GetIndices16()), std::end(prism.GetIndices16()));
-    indices.insert(indices.end(), std::begin(torus.GetIndices16()), std::end(torus.GetIndices16()));
-
-
-
-    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
-    auto geo = std::make_unique<MeshGeometry>();
-    geo->Name = "shapeGeo";
-
-    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
-    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
-    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-    geo->VertexByteStride = sizeof(Vertex);
-    geo->VertexBufferByteSize = vbByteSize;
-    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
-    geo->IndexBufferByteSize = ibByteSize;
-
-    geo->DrawArgs["box"] = boxSubmesh; // ADD HERE
-    geo->DrawArgs["outterWall"] = outterWallSubmesh;
-    geo->DrawArgs["tower"] = towerWallSubmesh;
-    geo->DrawArgs["gate"] = gateWallSubmesh;
-    geo->DrawArgs["grid"] = gridSubmesh;
-    geo->DrawArgs["sphere"] = sphereSubmesh;
-    geo->DrawArgs["cylinder"] = cylinderSubmesh;
-    geo->DrawArgs["rolo"] = roloSubmesh;
-    geo->DrawArgs["wedge"] = wedgeSubmesh; // MARY 8
-    geo->DrawArgs["cone"] = coneSubmesh; // MARY 8-2
-    geo->DrawArgs["pyramid"] = pyramidSubmesh; // MARY 8-3
-    geo->DrawArgs["truncatedPyramid"] = truncatedPyramidSubmesh;
-    geo->DrawArgs["diamond"] = diamondSubmesh;
-    geo->DrawArgs["charm"] = charmSubmesh;
-    geo->DrawArgs["prism"] = prismSubmesh;
-    geo->DrawArgs["torus"] = torusSubmesh;
-
-
-
-    mGeometries[geo->Name] = std::move(geo);*/
-
     ::OutputDebugStringA(">>> BuildShapeGeometry DONE!\n");
 }
 
@@ -1748,6 +1421,128 @@ void ShapesApp::BuildTreeSpritesGeometry()
     geo->DrawArgs["points"] = submesh;
 
     mGeometries["treeSpritesGeo"] = std::move(geo);
+}
+
+void ShapesApp::BuildCloudSpritesGeometry()
+{
+    //step5
+    struct TreeSpriteVertex
+    {
+        XMFLOAT3 Pos;
+        XMFLOAT2 Size;
+    };
+
+    static const int treeCount = 16;
+    std::array<TreeSpriteVertex, 16> vertices;
+    for (UINT i = 0; i < treeCount; ++i)
+    {
+        float x = MathHelper::RandF(-100.0f, 100.0f);
+        float z = MathHelper::RandF(-100.0f, 100.0f);
+        float y = 120.0f;
+
+
+        vertices[i].Pos = XMFLOAT3(x, y, z);
+        vertices[i].Size = XMFLOAT2(48, 20);
+    }
+
+    std::array<std::uint16_t, 16> indices =
+    {
+        0, 1, 2, 3, 4, 5, 6, 7,
+        8, 9, 10, 11, 12, 13, 14, 15
+    };
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(TreeSpriteVertex);
+    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->Name = "cloudSpritesGeo";
+
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+    geo->VertexByteStride = sizeof(TreeSpriteVertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferByteSize = ibByteSize;
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = (UINT)indices.size();
+    submesh.StartIndexLocation = 0;
+    submesh.BaseVertexLocation = 0;
+
+    geo->DrawArgs["points"] = submesh;
+
+    mGeometries["cloudSpritesGeo"] = std::move(geo);
+}
+
+void ShapesApp::BuildWyvernSpritesGeometry()
+{
+    //step5
+    struct TreeSpriteVertex
+    {
+        XMFLOAT3 Pos;
+        XMFLOAT2 Size;
+    };
+
+    static const int treeCount = 16;
+    std::array<TreeSpriteVertex, 16> vertices;
+    for (UINT i = 0; i < treeCount; ++i)
+    {
+        float x = MathHelper::RandF(-100.0f, 100.0f);
+        float z = MathHelper::RandF(-100.0f, 100.0f);
+        float y = 120.0f;
+
+
+        vertices[i].Pos = XMFLOAT3(x, y, z);
+        vertices[i].Size = XMFLOAT2(48, 20);
+    }
+
+    std::array<std::uint16_t, 16> indices =
+    {
+        0, 1, 2, 3, 4, 5, 6, 7,
+        8, 9, 10, 11, 12, 13, 14, 15
+    };
+
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(TreeSpriteVertex);
+    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->Name = "cloudSpritesGeo";
+
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+    geo->VertexByteStride = sizeof(TreeSpriteVertex);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferByteSize = ibByteSize;
+
+    SubmeshGeometry submesh;
+    submesh.IndexCount = (UINT)indices.size();
+    submesh.StartIndexLocation = 0;
+    submesh.BaseVertexLocation = 0;
+
+    geo->DrawArgs["points"] = submesh;
+
+    mGeometries["cloudSpritesGeo"] = std::move(geo);
 }
 
 void ShapesApp::BuildPSOs()
@@ -2032,6 +1827,15 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     treeSprites->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
     treeSprites->Roughness = 0.125f;
     mat_idx++;
+    
+    auto cloudSprites = std::make_unique<Material>();
+    cloudSprites->Name = "cloudSprites";
+    cloudSprites->MatCBIndex = mat_idx;
+    cloudSprites->DiffuseSrvHeapIndex = mat_idx;
+    cloudSprites->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    cloudSprites->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
+    cloudSprites->Roughness = 0.125f;
+    mat_idx++;
 
     mMaterials["bricks0"] = std::move(bricks0);
     mMaterials["stone0"] = std::move(stone0);
@@ -2050,6 +1854,7 @@ void ShapesApp::BuildMaterials() //EDIT MATS HERE
     mMaterials["water"] = std::move(water);
     mMaterials["gate0"] = std::move(gate0);
     mMaterials["treeSprites"] = std::move(treeSprites);
+    mMaterials["cloudSprites"] = std::move(cloudSprites);
 
     ::OutputDebugStringA(">>> BuildMaterials DONE!\n");
 }
@@ -2175,8 +1980,9 @@ void ShapesApp::BuildRenderItems()
 
     // waves
     auto wavesRitem = std::make_unique<RenderItem>();
-    wavesRitem->World = MathHelper::Identity4x4();
-    XMStoreFloat4x4(&wavesRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+    //wavesRitem->World = MathHelper::Identity4x4();
+    XMStoreFloat4x4(&wavesRitem->World, XMMatrixScaling(1, 1, 1) * XMMatrixTranslation(0.0f, -10, 0));
+    XMStoreFloat4x4(&wavesRitem->TexTransform, XMMatrixScaling(5, 5, 1.0f));
     wavesRitem->ObjCBIndex = index_cache;
     wavesRitem->Mat = mMaterials["water"].get();
     wavesRitem->Geo = mGeometries["waterGeo"].get();
@@ -2193,7 +1999,7 @@ void ShapesApp::BuildRenderItems()
 
     // HILLS
     auto gridRitem = std::make_unique<RenderItem>();
-    gridRitem->World = MathHelper::Identity4x4();
+    XMStoreFloat4x4(&gridRitem->World, XMMatrixScaling(1, 1, 1) * XMMatrixTranslation(0.0f, -5, 0));
     XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
     gridRitem->ObjCBIndex = index_cache;
     gridRitem->Mat = mMaterials["tile0"].get();
@@ -2207,9 +2013,14 @@ void ShapesApp::BuildRenderItems()
     mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
     mAllRitems.push_back(std::move(gridRitem));
 
-    // grid
-   // BuildOneRenderItem("grid", "gridGeo", "tile0", XMMatrixScaling(1, 1, 1), XMMatrixTranslation(0.0f, 0.0f, 0.0f), XMMatrixScaling(0.7, 0.7, 1), index_cache++);
+    // base
+    BuildOneRenderItem("truncatedPyramid", "truncatedPyramidGeo", "tile0", XMMatrixScaling(120, 20, 120), XMMatrixTranslation(0.0f, -10.1, 0.0f), XMMatrixScaling(1, 1, 1), index_cache++);
 
+
+    // grid
+    BuildOneRenderItem("grid", "gridGeo", "stone0", XMMatrixScaling(0.7f, 0.7f, 0.7f), XMMatrixTranslation(0.0f, 0.0f, 0.0f), XMMatrixScaling(0.7, 0.7, 1), index_cache++);
+    
+    
     // OUTTER
     // front wall 
     BuildOneRenderItem("outterWall", "outterWallGeo", "outer0", XMMatrixScaling(50.0f, 40, 4.0f), XMMatrixTranslation(0.0f, 19, -25.0f), XMMatrixScaling(1, 1, 1), index_cache++);
@@ -2457,6 +2268,21 @@ void ShapesApp::BuildRenderItems()
     mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites].push_back(treeSpritesRitem.get());
     mAllRitems.push_back(std::move(treeSpritesRitem));
 
+    // CLOUDS
+    auto cloudSpritesRitem = std::make_unique<RenderItem>();
+    cloudSpritesRitem->World = MathHelper::Identity4x4();
+    cloudSpritesRitem->ObjCBIndex = index_cache;
+    cloudSpritesRitem->Mat = mMaterials["cloudSprites"].get();
+    cloudSpritesRitem->Geo = mGeometries["cloudSpritesGeo"].get();
+    cloudSpritesRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+    cloudSpritesRitem->IndexCount = cloudSpritesRitem->Geo->DrawArgs["points"].IndexCount;
+    cloudSpritesRitem->StartIndexLocation = cloudSpritesRitem->Geo->DrawArgs["points"].StartIndexLocation;
+    cloudSpritesRitem->BaseVertexLocation = cloudSpritesRitem->Geo->DrawArgs["points"].BaseVertexLocation;
+    index_cache++;
+
+    mRitemLayer[(int)RenderLayer::AlphaTestedTreeSprites].push_back(cloudSpritesRitem.get());
+    mAllRitems.push_back(std::move(cloudSpritesRitem));
+
     //// All the render items are opaque.
     //for(auto& e : mAllRitems)
     //	mOpaqueRitems.push_back(e.get());
@@ -2468,8 +2294,6 @@ void ShapesApp::BuildRenderItems()
 //The DrawRenderItems method is invoked in the main Draw call:
 void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-    ::OutputDebugStringA(">>> DrawRenderItems started...\n");
-
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
     UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
 
@@ -2497,8 +2321,6 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
-
-    ::OutputDebugStringA(">>> DrawRenderItems DONE!\n");
 }
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> ShapesApp::GetStaticSamplers()
@@ -2560,7 +2382,7 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> ShapesApp::GetStaticSamplers()
 
 float ShapesApp::GetHillsHeight(float x, float z)const
 {
-    return 0.2f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
+    return 0.15f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
 }
 
 XMFLOAT3 ShapesApp::GetHillsNormal(float x, float z)const
